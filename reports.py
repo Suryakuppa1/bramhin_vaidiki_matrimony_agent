@@ -10,8 +10,9 @@ from datetime import datetime
 from pathlib import Path
 
 FIELDS = [
-    ("name", "Bride Name"), ("age", "Age"), ("dob", "DOB"),
-    ("nakshatram", "Nakshatram"), ("rashi", "Rashi"),
+    ("name", "Name"), ("gender", "Gender"), ("age", "Age"), ("dob", "DOB"),
+    ("father_name", "Father"), ("mother_name", "Mother"),
+    ("nakshatram", "Nakshatram"), ("padam", "Padam"), ("rashi", "Rashi"),
     ("gotram", "Gotram"), ("saka", "Saka"),
     ("birthplace", "Place of Birth"), ("birthtime", "Birth Time"),
     ("education", "Education"), ("location", "Current Location"),
@@ -72,7 +73,7 @@ def to_xlsx(records: list[dict], filter_summary: str = "") -> bytes:
             c.alignment = Alignment(vertical="top", wrap_text=True)
             c.font = Font(size=10, color="243749")
         ws.row_dimensions[index].height = 33
-    widths = [23, 9, 16, 17, 17, 18, 20, 24, 17, 20, 20, 30, 15, 18, 19]
+    widths = [22, 10, 8, 14, 20, 20, 14, 8, 14, 16, 18, 18, 14, 18, 18, 24, 14, 14, 16]
     for j, width in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(j)].width = width
     ws.freeze_panes = "A2"

@@ -86,5 +86,36 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(is_match(profile, stars="mrigasira"), "Match")
         self.assertEqual(is_match(profile, stars="మృగశీర్షం"), "Match")
 
+    def test_groom_sample_maka_padam_no_phone(self):
+        raw = """CONSENT:YES
+Gender: Male
+Name: SARVEPALLI VENKATESH BABU
+Father name: SREE HARI RAO SARVEPALLI
+Mothername: MADHAVI SARVEPALLI
+DOB: 30-07-1995
+Nakshatram: Maka, 4 PADAM
+Rashi: SIMHA
+Place of Birth: VIJAYAWADA
+Education: B. TECH. (Civil)
+ContactNumber: 9391073474, 6281790680, 9491728910
+"""
+        p = parse_profile(raw)
+        self.assertIsNotNone(p)
+        self.assertEqual(p["gender"], "male")
+        self.assertIn("VENKATESH", p["name"])
+        self.assertIn("SREE HARI", p["father_name"])
+        self.assertIn("MADHAVI", p["mother_name"])
+        self.assertEqual(p["dob"], "1995-07-30")
+        self.assertEqual(p["nakshatram"], "magha")
+        self.assertEqual(p["padam"], "4")
+        self.assertEqual(p["rashi"], "simha")
+        self.assertEqual(p["birthplace"], "vijayawada")
+        self.assertIn("Civil", p["education"])
+        blob = " ".join(str(v) for v in p.values() if v)
+        self.assertNotIn("9391073474", blob)
+        self.assertEqual(is_match(p, gender="Male", stars="Maka", padam="4", rashi="SIMHA",
+                                  birthplace="Vijayawada", education="B.Tech"), "Match")
+        self.assertEqual(is_match(p, father_name="Sree Hari", mother_name="Madhavi"), "Match")
+
 if __name__ == "__main__":
     unittest.main()
