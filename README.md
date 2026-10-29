@@ -102,7 +102,7 @@ streamlit run vault/app.py
 
 The fictional JSON file includes two profiles and one unrelated chat message. Once imported, adjust the sidebar criteria and use all export buttons.
 
-## 6) Suggested next iteration
+## 7) Suggested next iteration
 
 - Verified consent and privacy disclosures for people whose biodata is shared by relatives.
 - Editable review screen for unknown/inconsistent data, permissions and deletion requests.
