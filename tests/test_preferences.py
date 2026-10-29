@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import core
-from core import parse_profile, store_profile, load_profiles, import_export_json
+from core import parse_profile, store_profile, load_profiles, import_export_json, connect
 from preferences import (read_filters, save_filters, configured, matching_rows,
                          describe_filters, empty_matches_reason)
 
@@ -65,6 +65,40 @@ class PreferenceTests(unittest.TestCase):
         f = dict(min_age=20, max_age=30, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='different group')
         msg = empty_matches_reason(load_profiles(), f)
         self.assertIn('/setgroup', msg)
+    def test_reimport_keeps_one_canonical_match(self):
+        """Re-importing the original message must not hide every copy from /matches."""
+        p = parse_profile(PROFILE)
+        store_profile(p, source_name='Group', source_ref='101', source_kind='telegram_export')
+        store_profile(p, source_name='Group', source_ref='202', source_kind='telegram_export')
+        store_profile(p, source_name='Group', source_ref='101', source_kind='telegram_export')
+        rows = load_profiles()
+        canonical = [r for r in rows if not r.get('duplicate_of')]
+        duplicates = [r for r in rows if r.get('duplicate_of')]
+        self.assertEqual(len(canonical), 1)
+        self.assertEqual(len(duplicates), 1)
+        self.assertEqual(canonical[0]['source_ref'], '101')
+        self.assertEqual(duplicates[0]['source_ref'], '202')
+        self.assertEqual(duplicates[0]['duplicate_of'], canonical[0]['id'])
+        f = dict(min_age=20, max_age=30, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='')
+        self.assertEqual(len(matching_rows(rows, f)), 1)
+    def test_load_repairs_mutual_duplicate_flags(self):
+        p = parse_profile(PROFILE)
+        store_profile(p, source_name='Group', source_ref='101', source_kind='telegram_export')
+        store_profile(p, source_name='Group', source_ref='202', source_kind='telegram_export')
+        rows = load_profiles()
+        a, b = rows[0]['id'], rows[1]['id']
+        con = connect()
+        try:
+            # Simulate the pre-fix bug: both rows point at each other.
+            con.execute('UPDATE profiles SET duplicate_of=? WHERE id=?', (b, a))
+            con.execute('UPDATE profiles SET duplicate_of=? WHERE id=?', (a, b))
+            con.commit()
+        finally:
+            con.close()
+        repaired = load_profiles()
+        self.assertEqual(sum(1 for r in repaired if not r.get('duplicate_of')), 1)
+        f = dict(min_age=20, max_age=30, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='')
+        self.assertEqual(len(matching_rows(repaired, f)), 1)
 if __name__ == '__main__':
     unittest.main()
 
