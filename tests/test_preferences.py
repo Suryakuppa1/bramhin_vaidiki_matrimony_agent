@@ -4,7 +4,8 @@ from pathlib import Path
 from unittest.mock import patch
 import core
 from core import parse_profile, store_profile, load_profiles, import_export_json
-from preferences import read_filters, save_filters, configured, matching_rows, describe_filters
+from preferences import (read_filters, save_filters, configured, matching_rows,
+                         describe_filters, empty_matches_reason)
 
 PROFILE = '''Bride Profile
 Name: Ananya
@@ -44,8 +45,26 @@ class PreferenceTests(unittest.TestCase):
     def test_underage_excluded(self):
         p = dict(name='Test', dob='2010-01-01', age=16, nakshatram='rohini')
         store_profile(p, source_name='group', source_ref='3', source_kind='opt_in_bot')
-        f = dict(min_age=None, max_age=None, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None)
+        f = dict(min_age=None, max_age=None, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='')
         self.assertEqual(matching_rows(load_profiles(), f), [])
+    def test_empty_matches_reason_empty_db(self):
+        f = dict(min_age=23, max_age=28, stars='', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='')
+        msg = empty_matches_reason([], f)
+        self.assertIn('database is empty', msg)
+        self.assertIn('does not scrape', msg)
+    def test_empty_matches_reason_needs_review(self):
+        p = parse_profile(PROFILE)
+        store_profile(p, source_name='group', source_ref='4', source_kind='opt_in_bot')
+        f = dict(min_age=20, max_age=30, stars='Rohini', birthplace='', rashi='Vrishabha', education='', dob_start=None, dob_end=None, group='')
+        msg = empty_matches_reason(load_profiles(), f)
+        self.assertIn('Needs review', msg)
+        self.assertIn('/review', msg)
+    def test_empty_matches_reason_group_filter(self):
+        p = parse_profile(PROFILE)
+        store_profile(p, source_name='consented matrimonial group', source_ref='5', source_kind='opt_in_bot')
+        f = dict(min_age=20, max_age=30, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='different group')
+        msg = empty_matches_reason(load_profiles(), f)
+        self.assertIn('/setgroup', msg)
 if __name__ == '__main__':
     unittest.main()
 
