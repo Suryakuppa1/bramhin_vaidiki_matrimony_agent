@@ -7,22 +7,14 @@ from __future__ import annotations
 
 import streamlit as st
 
-from display import format_profile_html
+from display import format_profile_html, vault_stylesheet
 from vault.db import clear_all, count_profiles
 from vault.ingest import DEFAULT_INBOX, ingest_inbox
 from vault.search import search_profiles
 
 st.set_page_config(page_title="Matrimony Vault", page_icon="🗂", layout="wide")
 
-st.markdown(
-    """
-    <style>
-      .block-container { max-width: 920px; padding-top: 1.5rem; }
-      h1 { letter-spacing: -0.02em; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown(vault_stylesheet(), unsafe_allow_html=True)
 
 st.title("Matrimony Vault")
 st.caption(
@@ -106,7 +98,10 @@ rows = search_profiles(
 )
 
 st.header(f"{len(rows)} result{'s' if len(rows) != 1 else ''}")
-st.caption("Each profile is shown as a readable biodata sheet, including phone when present.")
+st.caption(
+        "Each match opens as a sectioned biodata sheet (Personal · Family · Astrology · Education), "
+        "including phone when present."
+    )
 
 if not rows:
     st.info("No matches yet. Ingest files from vault_inbox/ or loosen filters.")

@@ -306,7 +306,8 @@ async def _reply_matches_chunks(user_id: int) -> list[str]:
     header = (
         f'Found {len(rows)} matching profile(s).\n'
         f'Filters: {describe_filters(prefs)}\n'
-        'Details below (phone numbers are not stored in the Telegram bot — use the desktop Vault for contacts).'
+        'Readable biodata below.\n'
+        'Note: phone numbers are not in the Telegram bot — open the desktop Vault for contacts.'
     )
     return format_matches_list(rows, header=header, include_phone=False, limit=8)
 

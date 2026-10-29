@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
 
 def _val(value: Any, *, title: bool = False) -> str:
@@ -36,7 +36,7 @@ def _age_dob_line(profile: dict) -> str:
 
 
 def _star_line(profile: dict) -> str:
-    star = _val(profile.get("nakshatram"))
+    star = _val(profile.get("nakshatram"), title=True)
     padam = profile.get("padam")
     if padam not in (None, ""):
         if star == "—":
@@ -45,50 +45,114 @@ def _star_line(profile: dict) -> str:
     return star
 
 
-# (label, value-builder) — phone optional for Telegram bot privacy.
-_BASE_ROWS = (
-    ("Gender", lambda p: _val(p.get("gender"))),
-    ("Age / DOB", _age_dob_line),
-    ("Father", lambda p: _val(p.get("father_name"))),
-    ("Mother", lambda p: _val(p.get("mother_name"))),
-    ("Nakshatram", _star_line),
-    ("Rashi", lambda p: _val(p.get("rashi"))),
-    ("Gotram", lambda p: _val(p.get("gotram"))),
-    ("Saka", lambda p: _val(p.get("saka"))),
-    ("Birthplace", lambda p: _val(p.get("birthplace"))),
-    ("Education", lambda p: _val(p.get("education"))),
-    ("Location", lambda p: _val(p.get("location"))),
+# Sections keep biodata scannable on phone and desktop.
+_SECTIONS: tuple[tuple[str, tuple[tuple[str, Any], ...]], ...] = (
+    (
+        "Personal",
+        (
+            ("Gender", lambda p: _val(p.get("gender"), title=True)),
+            ("Age / DOB", _age_dob_line),
+            ("Birthplace", lambda p: _val(p.get("birthplace"), title=True)),
+            ("Location", lambda p: _val(p.get("location"), title=True)),
+        ),
+    ),
+    (
+        "Family",
+        (
+            ("Father", lambda p: _val(p.get("father_name"))),
+            ("Mother", lambda p: _val(p.get("mother_name"))),
+            ("Gotram", lambda p: _val(p.get("gotram"), title=True)),
+            ("Saka", lambda p: _val(p.get("saka"), title=True)),
+        ),
+    ),
+    (
+        "Astrology",
+        (
+            ("Nakshatram", _star_line),
+            ("Rashi", lambda p: _val(p.get("rashi"), title=True)),
+        ),
+    ),
+    (
+        "Education",
+        (("Education", lambda p: _val(p.get("education"))),),
+    ),
 )
+
+_KEEP_ALWAYS = {
+    "Gender",
+    "Age / DOB",
+    "Nakshatram",
+    "Rashi",
+    "Birthplace",
+    "Education",
+    "Phone",
+}
 
 
 def profile_rows(profile: dict, *, include_phone: bool = False) -> list[tuple[str, str]]:
-    rows = [(label, fn(profile)) for label, fn in _BASE_ROWS]
+    """Flat labeled rows (no section headers) for simple consumers/tests."""
+    rows: list[tuple[str, str]] = []
+    for _section, fields in _SECTIONS:
+        for label, fn in fields:
+            rows.append((label, fn(profile)))
     if include_phone:
-        rows.insert(4, ("Phone", _val(profile.get("phone"))))
+        # Phone after family name fields, before astrology — natural contact spot.
+        insert_at = next((i for i, (lab, _) in enumerate(rows) if lab == "Nakshatram"), len(rows))
+        rows.insert(insert_at, ("Phone", _val(profile.get("phone"))))
     source = profile.get("source_name") or profile.get("source_file")
     if source:
         rows.append(("Source", _val(source)))
-    # Drop empty optional rows that are all dashes except keep core identity lines
-    keep_always = {"Gender", "Age / DOB", "Nakshatram", "Rashi", "Birthplace", "Education", "Phone"}
-    cleaned = []
+    cleaned: list[tuple[str, str]] = []
     for label, value in rows:
-        if value == "—" and label not in keep_always:
+        if value == "—" and label not in _KEEP_ALWAYS:
             continue
         cleaned.append((label, value))
     return cleaned
 
 
+def profile_sections(profile: dict, *, include_phone: bool = False) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Grouped biodata sections; empty optional rows omitted."""
+    out: list[tuple[str, list[tuple[str, str]]]] = []
+    for section, fields in _SECTIONS:
+        rows: list[tuple[str, str]] = []
+        for label, fn in fields:
+            value = fn(profile)
+            if value == "—" and label not in _KEEP_ALWAYS:
+                continue
+            rows.append((label, value))
+        if section == "Family" and include_phone:
+            phone = _val(profile.get("phone"))
+            if phone != "—" or "Phone" in _KEEP_ALWAYS:
+                # Place phone after parents when present.
+                insert = 0
+                for i, (lab, _) in enumerate(rows):
+                    if lab in ("Father", "Mother"):
+                        insert = i + 1
+                rows.insert(insert, ("Phone", phone))
+        if rows:
+            out.append((section, rows))
+    source = profile.get("source_name") or profile.get("source_file")
+    if source:
+        out.append(("Source", [("File", _val(source))]))
+    return out
+
+
 def format_profile_text(profile: dict, *, index: int | None = None, include_phone: bool = False) -> str:
-    """Comfortable plain-text biodata block (Telegram-friendly)."""
+    """Comfortable plain-text biodata sheet for Telegram (mobile-friendly)."""
     name = _val(profile.get("name"))
     if name == "—":
         name = "Name unavailable"
-    title = f"{index}. {name}" if index is not None else name
-    rule = "—" * 28
-    lines = [rule, title, rule]
-    for label, value in profile_rows(profile, include_phone=include_phone):
-        lines.append(f"{label:<12} {value}")
-    return "\n".join(lines)
+    if index is not None:
+        header = f"── {index}. {name} ──"
+    else:
+        header = f"── {name} ──"
+    lines = [header, ""]
+    for section, rows in profile_sections(profile, include_phone=include_phone):
+        lines.append(section)
+        for label, value in rows:
+            lines.append(f"  {label}: {value}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 def format_matches_list(
@@ -123,31 +187,84 @@ def format_profile_html(profile: dict, *, index: int | None = None, include_phon
     if name == "—":
         name = "Name unavailable"
     title = f"{index}. {name}" if index is not None else name
-    rows_html = []
-    for label, value in profile_rows(profile, include_phone=include_phone):
-        rows_html.append(
-            f'<div style="display:flex; gap:1rem; padding:0.45rem 0; border-bottom:1px solid #e8eef3;">'
-            f'<div style="min-width:7.5rem; color:#5b6b7c; font-size:0.92rem;">{label}</div>'
-            f'<div style="flex:1; color:#1c2a36; font-size:1.02rem; line-height:1.45;">{_escape(value)}</div>'
+
+    subtitle_bits: list[str] = []
+    if profile.get("gender"):
+        subtitle_bits.append(_val(profile.get("gender"), title=True))
+    if profile.get("age") not in (None, ""):
+        subtitle_bits.append(f"{profile.get('age')} yrs")
+    star = _star_line(profile)
+    if star != "—":
+        subtitle_bits.append(star)
+    if include_phone:
+        phone = _val(profile.get("phone"))
+        if phone != "—":
+            subtitle_bits.append(phone)
+    sub = " · ".join(subtitle_bits)
+
+    sections_html: list[str] = []
+    for section, rows in profile_sections(profile, include_phone=include_phone):
+        row_bits = []
+        for label, value in rows:
+            row_bits.append(
+                '<div class="mv-row">'
+                f'<div class="mv-label">{_escape(label)}</div>'
+                f'<div class="mv-value">{_escape(value)}</div>'
+                "</div>"
+            )
+        sections_html.append(
+            f'<div class="mv-section">'
+            f'<div class="mv-section-title">{_escape(section)}</div>'
+            f'{"".join(row_bits)}'
             f"</div>"
         )
-    phone = _val(profile.get("phone")) if include_phone else ""
-    subtitle = []
-    if profile.get("gender"):
-        subtitle.append(_val(profile.get("gender")).title())
-    if profile.get("age") not in (None, ""):
-        subtitle.append(f"{profile.get('age')} yrs")
-    if include_phone and phone != "—":
-        subtitle.append(phone)
-    sub = " · ".join(subtitle)
+
     return (
-        f'<div style="background:#f7fafc; border:1px solid #d9e3ec; border-radius:12px; '
-        f'padding:1.1rem 1.25rem; margin:0 0 1rem 0;">'
-        f'<div style="font-size:1.25rem; font-weight:650; color:#14324a; margin-bottom:0.2rem;">{_escape(title)}</div>'
-        f'<div style="color:#607487; margin-bottom:0.75rem; font-size:0.95rem;">{_escape(sub)}</div>'
-        f'{"".join(rows_html)}'
-        f"</div>"
+        f'<article class="mv-sheet">'
+        f'<header class="mv-header">'
+        f'<div class="mv-name">{_escape(title)}</div>'
+        f'<div class="mv-sub">{_escape(sub)}</div>'
+        f"</header>"
+        f'{"".join(sections_html)}'
+        f"</article>"
     )
+
+
+def vault_stylesheet() -> str:
+    """Shared CSS injected once by the Vault Streamlit app."""
+    return """
+<style>
+  .block-container { max-width: 760px; padding-top: 1.35rem; padding-bottom: 3rem; }
+  h1 { letter-spacing: -0.02em; font-weight: 650; }
+  .mv-sheet {
+    background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fa 100%);
+    border: 1px solid #d5dee8;
+    border-radius: 14px;
+    padding: 1.15rem 1.35rem 0.85rem;
+    margin: 0 0 1.15rem 0;
+    box-shadow: 0 1px 0 rgba(20, 50, 74, 0.04);
+  }
+  .mv-header { margin-bottom: 0.85rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e2eaf1; }
+  .mv-name { font-size: 1.28rem; font-weight: 650; color: #14324a; line-height: 1.3; }
+  .mv-sub { color: #5f7386; margin-top: 0.28rem; font-size: 0.95rem; line-height: 1.4; }
+  .mv-section { margin: 0.55rem 0 0.85rem; }
+  .mv-section-title {
+    font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #7a8b9a; font-weight: 650; margin: 0 0 0.35rem 0;
+  }
+  .mv-row {
+    display: flex; gap: 1rem; align-items: baseline;
+    padding: 0.38rem 0; border-bottom: 1px solid #eaf0f5;
+  }
+  .mv-row:last-child { border-bottom: none; }
+  .mv-label { min-width: 7.2rem; color: #5b6b7c; font-size: 0.9rem; flex-shrink: 0; }
+  .mv-value { flex: 1; color: #1c2a36; font-size: 1.05rem; line-height: 1.5; word-break: break-word; }
+  @media (max-width: 640px) {
+    .mv-row { flex-direction: column; gap: 0.15rem; }
+    .mv-label { min-width: 0; }
+  }
+</style>
+"""
 
 
 def _escape(text: str) -> str:
@@ -162,5 +279,5 @@ def _escape(text: str) -> str:
 def format_review_line(profile: dict, *, index: int) -> str:
     name = _val(profile.get("name"))
     source = _val(profile.get("source_name") or profile.get("source_file"))
-    star = _val(profile.get("nakshatram"))
+    star = _val(profile.get("nakshatram"), title=True)
     return f"{index}. {name}\n    Star: {star}  ·  Source: {source}"
