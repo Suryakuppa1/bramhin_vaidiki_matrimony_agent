@@ -134,6 +134,75 @@ def connect() -> sqlite3.Connection:
     return con
 
 
+def _duplicate_of_for(con: sqlite3.Connection, uid: str, fingerprint: str | None) -> str | None:
+    """Point new same-name+DOB rows at an existing canonical peer; never demote that canonical row."""
+    if not fingerprint:
+        return None
+    canonical = con.execute(
+        "SELECT id FROM profiles WHERE fingerprint=? AND id<>? AND duplicate_of IS NULL "
+        "ORDER BY inserted_at ASC, id ASC LIMIT 1",
+        (fingerprint, uid),
+    ).fetchone()
+    if canonical:
+        return canonical["id"]
+    peer = con.execute(
+        "SELECT id FROM profiles WHERE fingerprint=? AND id<>? ORDER BY inserted_at ASC, id ASC LIMIT 1",
+        (fingerprint, uid),
+    ).fetchone()
+    if not peer:
+        return None
+    me = con.execute("SELECT id FROM profiles WHERE id=?", (uid,)).fetchone()
+    # Brand-new source message → mark as duplicate. Existing row with no canonical peer stays visible.
+    return peer["id"] if me is None else None
+
+
+def repair_duplicate_flags(con: sqlite3.Connection | None = None) -> int:
+    """Heal mutual duplicate_of links so each fingerprint keeps one visible canonical row."""
+    own = con is None
+    if own:
+        con = connect()
+    try:
+        fixed = 0
+        fingerprints = [
+            row["fingerprint"]
+            for row in con.execute(
+                "SELECT fingerprint FROM profiles WHERE fingerprint IS NOT NULL GROUP BY fingerprint"
+            )
+        ]
+        for fingerprint in fingerprints:
+            preferred = con.execute(
+                "SELECT id FROM profiles WHERE fingerprint=? AND duplicate_of IS NULL "
+                "ORDER BY inserted_at ASC, id ASC LIMIT 1",
+                (fingerprint,),
+            ).fetchone()
+            rows = con.execute(
+                "SELECT id FROM profiles WHERE fingerprint=? ORDER BY inserted_at ASC, id ASC",
+                (fingerprint,),
+            ).fetchall()
+            if not rows:
+                continue
+            canonical = preferred["id"] if preferred else rows[0]["id"]
+            cur = con.execute(
+                "UPDATE profiles SET duplicate_of=NULL WHERE id=? AND duplicate_of IS NOT NULL",
+                (canonical,),
+            )
+            fixed += cur.rowcount
+            for row in rows:
+                if row["id"] == canonical:
+                    continue
+                cur = con.execute(
+                    "UPDATE profiles SET duplicate_of=? WHERE id=? AND IFNULL(duplicate_of, '') != ?",
+                    (canonical, row["id"], canonical),
+                )
+                fixed += cur.rowcount
+        if own:
+            con.commit()
+        return fixed
+    finally:
+        if own:
+            con.close()
+
+
 def store_profile(profile: dict, *, source_name: str, source_ref: str,
                   source_kind: str, submitted_by: str | None = None,
                   message_date: str | None = None) -> bool:
@@ -143,16 +212,14 @@ def store_profile(profile: dict, *, source_name: str, source_ref: str,
     fingerprint = hashlib.sha256(f"{name}|{dob}".encode()).hexdigest()[:20] if name and dob else None
     con = connect()
     try:
-        original = None
-        if fingerprint:
-            row = con.execute("SELECT id FROM profiles WHERE fingerprint=? AND id<>? LIMIT 1", (fingerprint, uid)).fetchone()
-            original = row["id"] if row else None
+        original = _duplicate_of_for(con, uid, fingerprint)
         values = [uid] + [profile.get(f) for f in FIELDS] + [source_name, source_ref, source_kind,
                      submitted_by, message_date, fingerprint, original]
         # SQL parameterized; upsert is idempotent after reimport.
         cols = ["id", *FIELDS, "source_name", "source_ref", "source_kind", "submitted_by", "message_date", "fingerprint", "duplicate_of"]
         update = ",".join(f"{field}=excluded.{field}" for field in cols if field != "id")
         con.execute(f"INSERT INTO profiles({','.join(cols)}) VALUES({','.join(['?']*len(cols))}) ON CONFLICT(id) DO UPDATE SET {update}", values)
+        repair_duplicate_flags(con)
         con.commit()
         return True
     finally:
@@ -162,6 +229,9 @@ def store_profile(profile: dict, *, source_name: str, source_ref: str,
 def load_profiles() -> list[dict]:
     con = connect()
     try:
+        # Self-heal DBs corrupted by older mutual duplicate_of tagging on reimport.
+        if repair_duplicate_flags(con):
+            con.commit()
         return [dict(row) for row in con.execute("SELECT * FROM profiles ORDER BY inserted_at DESC, id DESC")]
     finally:
         con.close()
