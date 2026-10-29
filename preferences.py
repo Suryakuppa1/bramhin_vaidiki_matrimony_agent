@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from core import connect, is_match, get_age
+from core import connect, is_match, get_age, star_value_counts
 
 EMPTY = {
     "min_age": None, "max_age": None, "stars": "", "birthplace": "", "rashi": "",
@@ -119,10 +119,19 @@ def empty_matches_reason(profiles: list[dict], filters: dict) -> str:
             'or await new consented submissions. '
             f'Your filters: {prefs}'
         )
+    extra = ''
+    if filters.get('stars'):
+        top = star_value_counts(profiles)
+        if top:
+            shown = ', '.join(f'{name}×{count}' for name, count in top[:8])
+            extra = f' Stars currently in DB: {shown}.'
+        else:
+            extra = ' No nakshatram values are stored on these profiles yet.'
     return (
         f'No matching bride names found yet among {adults} adult consented profile(s). '
         'Your filters may be too strict (fields are combined with AND; Telugu/English aliases still count as the same value). '
-        f'Check /filters or await new consented submissions. Your filters: {prefs}'
+        f'{extra} Try /setstar with a spelling from the DB list, or /clearfilters then one filter at a time. '
+        f'Your filters: {prefs}'
     )
 
 

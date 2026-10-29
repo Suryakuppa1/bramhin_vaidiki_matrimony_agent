@@ -72,5 +72,19 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(canonical("వైదికి వేలనాడు", SAKA_ALIASES), "vaidiki_velanadu")
         self.assertEqual(canonical("Bharadwaj", GOTRAM_ALIASES), "bharadwaja")
 
+    def test_mrigasira_spellings(self):
+        for spelling in (
+            "mrigasira", "Mrigashira", "Mriga Sira", "mrigasira nakshatram",
+            "mrugasira", "మృగశిర", "మృగశీర్షం",
+        ):
+            self.assertEqual(normalized_star(spelling), "mrigashira", spelling)
+        profile = {
+            "name": "Test", "dob": "1999-07-14", "age": 27,
+            "nakshatram": "Mriga Sira nakshatram", "rashi": None, "gotram": None,
+            "saka": None, "birthplace": None, "education": None,
+        }
+        self.assertEqual(is_match(profile, stars="mrigasira"), "Match")
+        self.assertEqual(is_match(profile, stars="మృగశీర్షం"), "Match")
+
 if __name__ == "__main__":
     unittest.main()
