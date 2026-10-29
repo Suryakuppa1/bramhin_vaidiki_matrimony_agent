@@ -3,8 +3,11 @@ from display import (
     format_profile_text,
     format_matches_list,
     format_profile_html,
+    format_vault_report,
     profile_rows,
     profile_sections,
+    vault_hero_html,
+    vault_stylesheet,
 )
 
 
@@ -59,6 +62,21 @@ class DisplayTests(unittest.TestCase):
         self.assertIn("Phone", labels)
         labels2 = [label for label, _ in profile_rows(SAMPLE, include_phone=False)]
         self.assertNotIn("Phone", labels2)
+
+    def test_submit_report_and_wedding_background(self):
+        report = format_vault_report([SAMPLE], summary="Nakshatram: Magha")
+        self.assertIn("Wedding Vault", report)
+        self.assertIn("Nakshatram: Magha", report)
+        self.assertIn("9391073474", report)
+        self.assertIn("Personal", report)
+        hero = vault_hero_html(1)
+        self.assertIn("Wedding Vault", hero)
+        self.assertIn("Submit", hero)
+        self.assertIn("1 profile stored", hero)
+        css = vault_stylesheet()
+        self.assertIn(".stApp", css)
+        self.assertIn(".mv-sheet", css)
+        self.assertIn("data:image/jpeg;base64,", css)
 
     def test_sections_group_fields(self):
         sections = dict(profile_sections(SAMPLE, include_phone=True))
