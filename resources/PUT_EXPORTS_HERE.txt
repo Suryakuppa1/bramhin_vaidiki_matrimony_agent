@@ -1,0 +1,30 @@
+Put your chat exports in this folder (resources/).
+
+Supported for import:
+  - .txt / .text  (Telegram copy-paste, WhatsApp "Export chat" without media)
+  - .json         (Telegram Desktop machine-readable export)
+
+Not imported yet (skipped with a note):
+  - images (.jpg/.png/…), PDF, Word, audio/video
+
+Suggested layout:
+  resources/telegram_group_a.txt
+  resources/whatsapp_group_b.txt
+  resources/old_export.json
+
+Each biodata block should use labeled lines, for example:
+
+  CONSENT:YES
+  Name: Example Name
+  DOB: 14-07-1999
+  Nakshatram: Rohini
+  Rashi: Vrishabha
+  Place of Birth: Hyderabad
+  Education: B.Tech
+
+Telugu labels (పేరు, నక్షత్రం, …) also work.
+
+Then run:
+  python import_resources.py --i-have-permission
+
+Only import people you are allowed to process. Your exports are gitignored.

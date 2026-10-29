@@ -410,6 +410,45 @@ def is_match(profile: dict, *, min_age: int | None = None, max_age: int | None =
     return "Needs review" if missing else "Match"
 
 
+_CONSENT_RE = re.compile(
+    r"(?:^|\n)\s*(?:/submit(?:@\w+)?\s+)?CONSENT\s*:\s*YES\b", re.I
+)
+# WhatsApp / some Telegram copy exports prefix each line with a timestamp + sender.
+_CHAT_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"\[\d{1,2}[./-]\d{1,2}[./-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[APap][Mm])?\]\s*[^:\n]{1,80}:\s*"
+    r"|"
+    r"\d{1,2}/\d{1,2}/\d{2,4},?\s+\d{1,2}:\d{2}(?:\s*[APap][Mm])?\s*-\s*[^:\n]{1,80}:\s*"
+    r")"
+)
+_TEXT_SUFFIXES = {".txt", ".text"}
+_JSON_SUFFIXES = {".json"}
+_SKIP_SUFFIXES = {
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".mp3", ".mp4", ".opus", ".ogg", ".wav", ".m4a", ".aac",
+    ".zip", ".rar", ".7z", ".gz",
+}
+
+
+def strip_chat_prefixes(text: str) -> str:
+    """Remove WhatsApp/Telegram timestamp+sender prefixes so labeled fields remain."""
+    return "\n".join(_CHAT_PREFIX_RE.sub("", line) for line in text.splitlines())
+
+
+def split_profile_blocks(text: str) -> list[str]:
+    """Split an export into candidate biodata blocks."""
+    cleaned = strip_chat_prefixes(text)
+    if _CONSENT_RE.search(cleaned):
+        parts = re.split(
+            r"(?=(?:^|\n)\s*(?:/submit(?:@\w+)?\s+)?CONSENT\s*:\s*YES\b)",
+            cleaned,
+            flags=re.I,
+        )
+        return [part.strip() for part in parts if part.strip()]
+    return [block.strip() for block in re.split(r"\n\s*\n+", cleaned) if block.strip()]
+
+
 def import_export_json(payload: bytes, *, filename: str, permission_confirmed: bool) -> tuple[int, int]:
     if not permission_confirmed:
         raise ValueError("Import requires confirmed permission to process these profiles.")
@@ -431,7 +470,7 @@ def import_export_json(payload: bytes, *, filename: str, permission_confirmed: b
             continue
         # In historical exports, do not silently index posts with no explicit
         # documented opt-in. Group access alone is not subject consent.
-        if not re.search(r"(?:^|\n)\s*(?:/submit(?:@\w+)?\s+)?CONSENT\s*:\s*YES\b", raw, re.I):
+        if not _CONSENT_RE.search(raw):
             reviewed += 1
             continue
         profile = parse_profile(raw)
@@ -443,3 +482,89 @@ def import_export_json(payload: bytes, *, filename: str, permission_confirmed: b
                       source_kind="telegram_export", message_date=str(message.get("date") or ""))
         accepted += 1
     return accepted, reviewed
+
+
+def import_text_export(
+    text: str,
+    *,
+    filename: str,
+    permission_confirmed: bool,
+    require_consent_tag: bool = True,
+) -> tuple[int, int]:
+    """Import labeled profiles from a plain-text / WhatsApp chat export."""
+    if not permission_confirmed:
+        raise ValueError("Import requires confirmed permission to process these profiles.")
+    source_name = Path(filename).stem.replace("_", " ")[:150] or filename[:150]
+    accepted = skipped = 0
+    for index, block in enumerate(split_profile_blocks(text), 1):
+        if require_consent_tag and not _CONSENT_RE.search(block):
+            skipped += 1
+            continue
+        profile = parse_profile(block)
+        if profile is None or not profile.get("name") or not get_age(profile.get("dob"), profile.get("age")):
+            skipped += 1
+            continue
+        age = get_age(profile.get("dob"), profile.get("age"))
+        if age is not None and age < 18:
+            skipped += 1
+            continue
+        ref = hashlib.sha256(f"{filename}:{index}:{profile.get('name')}|{profile.get('dob')}".encode()).hexdigest()[:16]
+        store_profile(
+            profile,
+            source_name=source_name,
+            source_ref=ref,
+            source_kind="resources_text",
+            message_date="",
+        )
+        accepted += 1
+    return accepted, skipped
+
+
+def import_resources_dir(
+    directory: Path,
+    *,
+    permission_confirmed: bool,
+    require_consent_tag: bool = True,
+) -> dict[str, int]:
+    """Scan resources/ for text + JSON exports. Skips images and other binaries."""
+    if not permission_confirmed:
+        raise ValueError("Import requires confirmed permission to process these profiles.")
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise FileNotFoundError(f"Resources folder not found: {directory}")
+    stats = {"accepted": 0, "skipped": 0, "files": 0, "ignored_media": 0}
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        if path.name.upper().startswith("PUT_EXPORTS_HERE"):
+            continue
+        suffix = path.suffix.casefold()
+        if suffix in _SKIP_SUFFIXES:
+            stats["ignored_media"] += 1
+            continue
+        if suffix in _JSON_SUFFIXES:
+            yes, other = import_export_json(
+                path.read_bytes(), filename=path.name, permission_confirmed=True
+            )
+            stats["accepted"] += yes
+            stats["skipped"] += other
+            stats["files"] += 1
+            continue
+        if suffix in _TEXT_SUFFIXES or suffix == "":
+            # Allow extensionless text dumps people sometimes save.
+            if suffix == "" and path.stat().st_size > 2_000_000:
+                stats["ignored_media"] += 1
+                continue
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+            yes, other = import_text_export(
+                text,
+                filename=str(path.relative_to(directory)),
+                permission_confirmed=True,
+                require_consent_tag=require_consent_tag,
+            )
+            stats["accepted"] += yes
+            stats["skipped"] += other
+            stats["files"] += 1
+            continue
+        stats["ignored_media"] += 1
+    return stats
