@@ -26,9 +26,12 @@ all_rows = load_profiles()
 st.sidebar.header("Bride requirements")
 use_age = st.sidebar.checkbox("Filter by age", True)
 minage, maxage = st.sidebar.slider("Age range", 18, 60, (22, 29), disabled=not use_age)
-stars = st.sidebar.text_input("Nakshatram (comma-separated)", placeholder="Rohini, Swathi")
-city = st.sidebar.text_input("Place of birth", placeholder="Hyderabad")
-rashi = st.sidebar.text_input("Rashi", placeholder="Vrishabha")
+name_q = st.sidebar.text_input("Name contains", placeholder="Ananya / అనన్య")
+stars = st.sidebar.text_input("Nakshatram (comma-separated)", placeholder="Rohini or రోహిణి")
+rashi = st.sidebar.text_input("Rashi", placeholder="Vrishabha or వృషభ")
+gotram = st.sidebar.text_input("Gotram", placeholder="Bharadwaja or భరద్వాజ")
+saka = st.sidebar.text_input("Saka / sect", placeholder="Vaidiki Velanadu")
+city = st.sidebar.text_input("Place of birth", placeholder="Hyderabad or హైదరాబాద్")
 education = st.sidebar.text_input("Education contains", placeholder="B.Tech, MBA")
 use_dob = st.sidebar.checkbox("Filter by date of birth", False)
 dob_values = st.sidebar.date_input("DOB from/to", value=(date(1995, 1, 1), date(2005, 12, 31)), disabled=not use_dob)
@@ -37,11 +40,13 @@ show_nonmatches = st.sidebar.checkbox("Show non-matches", False)
 include_duplicates = st.sidebar.checkbox("Include possible duplicates", False)
 
 criteria = dict(min_age=minage if use_age else None, max_age=maxage if use_age else None,
-                stars=stars, birthplace=city, rashi=rashi, education=education)
+                name=name_q, stars=stars, birthplace=city, rashi=rashi,
+                gotram=gotram, saka=saka, education=education)
 if use_dob and isinstance(dob_values, (tuple, list)) and len(dob_values) == 2:
     criteria.update(dob_start=dob_values[0], dob_end=dob_values[1])
 filters_summary = f"Age: {minage}-{maxage}" if use_age else "Any age"
-for label, val in (("Nakshatram", stars), ("Birthplace", city), ("Rashi", rashi), ("Education", education)):
+for label, val in (("Name", name_q), ("Nakshatram", stars), ("Rashi", rashi),
+                   ("Gotram", gotram), ("Saka", saka), ("Birthplace", city), ("Education", education)):
     if val.strip():
         filters_summary += f" | {label}: {val.strip()}"
 if use_dob and len(dob_values) == 2:
@@ -66,11 +71,12 @@ c1.metric("Total profiles", len(all_rows))
 c2.metric("Matched", sum(r["status"] == "Match" for r in rows))
 c3.metric("Needs review", sum(r["status"] == "Needs review" for r in rows))
 c4.metric("Displayed", len(rows))
-st.caption("The match filter is strict: missing requested fields are flagged for review, not assumed to match. Profile ages are calculated from DOB when present.")
+st.caption("Filters are AND'd. Telugu/English aliases for star, rashi, gotram, saka and common places match as the same value. Missing requested fields are Needs review.")
 preview = []
 for r in rows:
     preview.append({"Bride Name":r.get("name"), "Age":r.get("age"), "DOB":r.get("dob"),
-        "Nakshatram":r.get("nakshatram"), "Rashi":r.get("rashi"), "Place of Birth":r.get("birthplace"),
+        "Nakshatram":r.get("nakshatram"), "Rashi":r.get("rashi"), "Gotram":r.get("gotram"),
+        "Saka":r.get("saka"), "Place of Birth":r.get("birthplace"),
         "Education":r.get("education"), "Group":r.get("source_name"), "Message ID":r.get("source_ref"),
         "Status":r.get("status"), "Duplicate?":bool(r.get("duplicate_of"))})
 st.dataframe(preview, use_container_width=True, hide_index=True)

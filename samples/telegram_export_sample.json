@@ -2,8 +2,8 @@
   "name": "Example Marriage Group (SYNTHETIC DATA ONLY)",
   "type": "private_supergroup",
   "messages": [
-    {"id": 101, "type": "message", "date": "2026-10-27T09:00:00", "text": "Bride Profile\nCONSENT:YES\nName: Ananya\nDOB: 14-07-1999\nNakshatram: Rohini\nRashi: Vrishabha\nPlace of Birth: Vijayawada\nEducation: B.Tech"},
-    {"id": 102, "type": "message", "date": "2026-10-27T09:30:00", "text": [{"type":"plain","text":"Marriage biodata\nCONSENT:YES\nపేరు: శ్రీలేఖ\nపుట్టిన తేదీ: 23/02/2002\nనక్షత్రం: స్వాతి\nజన్మస్థలం: హైదరాబాద్\nవిద్య: MBA"}]},
+    {"id": 101, "type": "message", "date": "2026-10-27T09:00:00", "text": "Bride Profile\nCONSENT:YES\nName: Ananya\nDOB: 14-07-1999\nNakshatram: Rohini\nRashi: Vrishabha\nGotram: Bharadwaja\nSaka: Vaidiki Velanadu\nPlace of Birth: Vijayawada\nEducation: B.Tech"},
+    {"id": 102, "type": "message", "date": "2026-10-27T09:30:00", "text": [{"type":"plain","text":"Marriage biodata\nCONSENT:YES\nపేరు: శ్రీలేఖ\nపుట్టిన తేదీ: 23/02/2002\nనక్షత్రం: స్వాతి\nరాశి: తుల\nగోత్రం: కశ్యప\nవైదికి వేలనాడు: వైదికి వేలనాడు\nజన్మస్థలం: హైదరాబాద్\nవిద్య: MBA"}]},
     {"id": 103, "type": "message", "date": "2026-10-27T10:00:00", "text": "This is an unrelated group announcement."}
   ]
 }

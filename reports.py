@@ -12,6 +12,7 @@ from pathlib import Path
 FIELDS = [
     ("name", "Bride Name"), ("age", "Age"), ("dob", "DOB"),
     ("nakshatram", "Nakshatram"), ("rashi", "Rashi"),
+    ("gotram", "Gotram"), ("saka", "Saka"),
     ("birthplace", "Place of Birth"), ("birthtime", "Birth Time"),
     ("education", "Education"), ("location", "Current Location"),
     ("source_name", "Source Group"), ("source_ref", "Message ID"),
@@ -71,11 +72,12 @@ def to_xlsx(records: list[dict], filter_summary: str = "") -> bytes:
             c.alignment = Alignment(vertical="top", wrap_text=True)
             c.font = Font(size=10, color="243749")
         ws.row_dimensions[index].height = 33
-    widths = [23, 9, 16, 17, 17, 24, 17, 20, 20, 30, 15, 18, 19]
+    widths = [23, 9, 16, 17, 17, 18, 20, 24, 17, 20, 20, 30, 15, 18, 19]
     for j, width in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(j)].width = width
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:M{max(1,len(records)+1)}"
+    last_col = get_column_letter(len(FIELDS))
+    ws.auto_filter.ref = f"A1:{last_col}{max(1, len(records) + 1)}"
     ws.sheet_view.showGridLines = False
     info.sheet_view.showGridLines = False
     ws.print_options.horizontalCentered = True

@@ -1,8 +1,9 @@
 """Consent-based Telegram marriage profiles with private self-service matching.
 
 Commands in allowlisted groups: /submit CONSENT:YES ...
-Commands in private chat: /setage, /setstar, /setbirthplace, /setrashi,
-/seteducation, /setgroup, /setdob, /filters, /matches, /review, /export, /clearfilters.
+Commands in private chat: /setage, /setstar, /setrashi, /setgotram, /setsaka,
+/setname, /setbirthplace, /seteducation, /setgroup, /setdob, /filters, /matches,
+/review, /export, /clearfilters. Telugu or English filter values both work.
 
 This bot does NOT scrape group history or index ordinary messages.
 """
@@ -36,23 +37,30 @@ TEMPLATE = (
     'DOB: 14-07-1999\n'
     'Nakshatram: Rohini\n'
     'Rashi: Vrishabha\n'
+    'Gotram: Bharadwaja\n'
+    'Saka: Vaidiki Velanadu\n'
     'Place of Birth: Hyderabad\n'
     'Education: B.Tech\n\n'
+    'Telugu labels also work (పేరు, నక్షత్రం, రాశి, గోత్రం, వైదికి వేలనాడు, …). '
     'Only submit your own profile or one you are explicitly authorized to submit. '
     'By submitting you authorize private matchmaking storage/results; use /delete_my_profiles to revoke. '
     'Do not include phone numbers, addresses or government IDs.'
 )
 HELP = (
-    'Private search commands (authorized users only):\n'
+    'Private search commands (authorized users only).\n'
+    'Telugu or English values both match the same detail:\n'
     '/setage 23 28\n'
-    '/setstar Rohini, Swathi\n'
-    '/setbirthplace Hyderabad\n'
+    '/setstar Rohini   (or /setstar రోహిణి)\n'
     '/setrashi Vrishabha\n'
+    '/setgotram Bharadwaja\n'
+    '/setsaka Vaidiki Velanadu\n'
+    '/setname Ananya\n'
+    '/setbirthplace Hyderabad\n'
     '/seteducation B.Tech\n'
     '/setgroup Marriage Group Name\n'
     '/setdob 1997-01-01 2003-12-31\n'
     '/filters – show requirements\n'
-    '/matches – matching bride names only\n'
+    '/matches – matching profiles for those filters only\n'
     '/review – include incomplete profiles\n'
     '/export excel | word | pdf – private report\n'
     '/clearfilters – reset requirements\n'
@@ -165,9 +173,30 @@ async def setbirthplace(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def setrashi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.effective_message.reply_text('Usage: /setrashi Vrishabha')
+        await update.effective_message.reply_text('Usage: /setrashi Vrishabha   (or Telugu రాశి name)')
         return
     await _set_filter(update, 'rashi', ' '.join(context.args))
+
+
+async def setgotram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.effective_message.reply_text('Usage: /setgotram Bharadwaja   (or Telugu భరద్వాజ)')
+        return
+    await _set_filter(update, 'gotram', ' '.join(context.args))
+
+
+async def setsaka(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.effective_message.reply_text('Usage: /setsaka Vaidiki Velanadu   (or వైదికి వేలనాడు)')
+        return
+    await _set_filter(update, 'saka', ' '.join(context.args))
+
+
+async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.effective_message.reply_text('Usage: /setname Ananya')
+        return
+    await _set_filter(update, 'name', ' '.join(context.args))
 
 
 async def seteducation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -236,7 +265,11 @@ async def matches(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     lines = [f'Found {len(rows)} matching profiles (up to 100). Your requirements: {describe_filters(read_filters(update.effective_user.id))}', '']
     for i, p in enumerate(rows[:20], 1):
-        lines.append(f'{i}. {p.get("name") or "Name unavailable"} | Age {p.get("age") or "?"} | {p.get("nakshatram") or "Star unknown"} | {p.get("source_name") or "Opt-in"}')
+        lines.append(
+            f'{i}. {p.get("name") or "Name unavailable"} | Age {p.get("age") or "?"} | '
+            f'{p.get("nakshatram") or "Star unknown"} | {p.get("gotram") or "Gotram n/a"} | '
+            f'{p.get("saka") or "Saka n/a"} | {p.get("source_name") or "Opt-in"}'
+        )
     if len(rows) > 20:
         lines.append(f'... plus {len(rows)-20} more. Use /export excel to view the complete filtered list.')
     await update.effective_message.reply_text('\n'.join(lines))
@@ -299,9 +332,11 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     for cmd, fn in [('start', start), ('help', start), ('myid', myid), ('submit', submit),
                     ('setage', setage), ('setstar', setstar), ('setbirthplace', setbirthplace),
-                    ('setrashi', setrashi), ('seteducation', seteducation), ('setgroup', setgroup), ('setdob', setdob),
-                    ('filters', filters), ('clearfilters', clear), ('matches', matches),
-                    ('review', review), ('export', export), ('delete_my_profiles', delete_mine)]:
+                    ('setrashi', setrashi), ('setgotram', setgotram), ('setsaka', setsaka),
+                    ('setname', setname), ('seteducation', seteducation), ('setgroup', setgroup),
+                    ('setdob', setdob), ('filters', filters), ('clearfilters', clear),
+                    ('matches', matches), ('review', review), ('export', export),
+                    ('delete_my_profiles', delete_mine)]:
         app.add_handler(CommandHandler(cmd, fn))
     logging.info('Opt-in matcher bot running; /matches and exports available only to authorized private users')
     app.run_polling(allowed_updates=['message'])

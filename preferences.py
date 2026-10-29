@@ -8,7 +8,11 @@ import json
 from datetime import date
 from core import connect, is_match, get_age
 
-EMPTY = {"min_age": None, "max_age": None, "stars": "", "birthplace": "", "rashi": "", "education": "", "dob_start": None, "dob_end": None, "group": ""}
+EMPTY = {
+    "min_age": None, "max_age": None, "stars": "", "birthplace": "", "rashi": "",
+    "gotram": "", "saka": "", "name": "", "education": "",
+    "dob_start": None, "dob_end": None, "group": "",
+}
 
 
 def read_filters(user_id: int | str) -> dict:
@@ -117,7 +121,7 @@ def empty_matches_reason(profiles: list[dict], filters: dict) -> str:
         )
     return (
         f'No matching bride names found yet among {adults} adult consented profile(s). '
-        'Your filters may be too strict (age/star/birthplace/rashi/education are combined with AND). '
+        'Your filters may be too strict (fields are combined with AND; Telugu/English aliases still count as the same value). '
         f'Check /filters or await new consented submissions. Your filters: {prefs}'
     )
 
@@ -126,7 +130,11 @@ def describe_filters(f: dict) -> str:
     parts = []
     if f.get('min_age') is not None or f.get('max_age') is not None:
         parts.append(f"Age: {f.get('min_age') or 'any'}–{f.get('max_age') or 'any'}")
-    for k, display in [('stars', 'Nakshatram'), ('birthplace', 'Birthplace'), ('rashi', 'Rashi'), ('education', 'Education'), ('group', 'Source group')]:
+    for k, display in [
+        ('name', 'Name'), ('stars', 'Nakshatram'), ('rashi', 'Rashi'),
+        ('gotram', 'Gotram'), ('saka', 'Saka'), ('birthplace', 'Birthplace'),
+        ('education', 'Education'), ('group', 'Source group'),
+    ]:
         if f.get(k):
             parts.append(f"{display}: {f[k]}")
     if f.get('dob_start') or f.get('dob_end'):
