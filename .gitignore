@@ -4,5 +4,10 @@ __pycache__/
 *.pyc
 data/*
 !data/.gitkeep
+resources/*
+!resources/.gitkeep
+!resources/PUT_EXPORTS_HERE.txt
+!resources/samples/
+!resources/samples/**
 *.sqlite3*
 *.session*

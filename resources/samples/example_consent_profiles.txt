@@ -1,0 +1,17 @@
+# Synthetic sample only — safe to commit. Replace with real exports in resources/.
+
+CONSENT:YES
+Name: Ananya
+DOB: 14-07-1999
+Nakshatram: Rohini
+Rashi: Vrishabha
+Place of Birth: Vijayawada
+Education: B.Tech
+
+CONSENT:YES
+పేరు: శ్రీలేఖ
+పుట్టిన తేదీ: 23/02/2002
+నక్షత్రం: స్వాతి
+రాశి: తుల
+జన్మస్థలం: హైదరాబాద్
+విద్య: MBA
