@@ -27,6 +27,7 @@ from menu import (
     age_keyboard, build_field_options, display_value,
 )
 from reports import to_xlsx, to_docx, to_pdf
+from display import format_matches_list, format_review_line
 
 load_dotenv()
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
@@ -295,26 +296,20 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def _reply_matches_text(update: Update, user_id: int) -> str:
+async def _reply_matches_chunks(user_id: int) -> list[str]:
     prefs = read_filters(user_id)
     if not configured(prefs):
-        return 'Please set a requirement first from /menu (or /setage, /setstar, …).'
+        return ['Please set a requirement first from /menu (or /setage, /setstar, …).']
     rows = matching_rows(load_profiles(), prefs, limit=100)
     if not rows:
-        return empty_matches_reason(load_profiles(), prefs)
-    lines = [
-        f'Found {len(rows)} matching profiles (up to 100). Your requirements: {describe_filters(prefs)}',
-        '',
-    ]
-    for i, p in enumerate(rows[:20], 1):
-        lines.append(
-            f'{i}. {p.get("name") or "Name unavailable"} | Age {p.get("age") or "?"} | '
-            f'{p.get("nakshatram") or "Star unknown"} | {p.get("gotram") or "Gotram n/a"} | '
-            f'{p.get("saka") or "Saka n/a"} | {p.get("source_name") or "Opt-in"}'
-        )
-    if len(rows) > 20:
-        lines.append(f'... plus {len(rows)-20} more. Use /export excel to view the complete filtered list.')
-    return '\n'.join(lines)
+        return [empty_matches_reason(load_profiles(), prefs)]
+    header = (
+        f'Found {len(rows)} matching profile(s).\n'
+        f'Filters: {describe_filters(prefs)}\n'
+        'Readable biodata below.\n'
+        'Note: phone numbers are not in the Telegram bot — open the desktop Vault for contacts.'
+    )
+    return format_matches_list(rows, header=header, include_phone=False, limit=8)
 
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -352,8 +347,10 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     if action == 'act' and parts[2] == 'matches':
-        text = await _reply_matches_text(update, user_id)
-        await query.edit_message_text(text[:4000], reply_markup=home_keyboard())
+        chunks = await _reply_matches_chunks(user_id)
+        await query.edit_message_text(chunks[0][:4000], reply_markup=home_keyboard())
+        for extra in chunks[1:]:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=extra[:4000])
         return
 
     if action == 'list' and parts[2] == 'age':
@@ -424,23 +421,11 @@ async def _get_rows(update: Update, *, review: bool = False, limit: int = 100):
 
 
 async def matches(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    rows = await _get_rows(update, limit=100)
-    if rows is None:
+    if not await require_private_owner(update):
         return
-    if not rows:
-        prefs = read_filters(update.effective_user.id)
-        await update.effective_message.reply_text(empty_matches_reason(load_profiles(), prefs))
-        return
-    lines = [f'Found {len(rows)} matching profiles (up to 100). Your requirements: {describe_filters(read_filters(update.effective_user.id))}', '']
-    for i, p in enumerate(rows[:20], 1):
-        lines.append(
-            f'{i}. {p.get("name") or "Name unavailable"} | Age {p.get("age") or "?"} | '
-            f'{p.get("nakshatram") or "Star unknown"} | {p.get("gotram") or "Gotram n/a"} | '
-            f'{p.get("saka") or "Saka n/a"} | {p.get("source_name") or "Opt-in"}'
-        )
-    if len(rows) > 20:
-        lines.append(f'... plus {len(rows)-20} more. Use /export excel to view the complete filtered list.')
-    await update.effective_message.reply_text('\n'.join(lines))
+    chunks = await _reply_matches_chunks(update.effective_user.id)
+    for i, chunk in enumerate(chunks):
+        await update.effective_message.reply_text(chunk[:4000])
 
 
 async def review(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -451,10 +436,13 @@ async def review(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not pending:
         await update.effective_message.reply_text('No incomplete profiles require review for your requirements.')
         return
-    lines = [f'{len(pending)} profiles with missing requirements (not confirmed matches):']
-    for i, r in enumerate(pending[:20], 1):
-        lines.append(f'{i}. {r.get("name") or "Unnamed"} | {r.get("source_name") or "Opt-in"}')
-    await update.effective_message.reply_text('\n'.join(lines))
+    lines = [f'{len(pending)} profile(s) need review (missing a requested field):', '']
+    for i, r in enumerate(pending[:15], 1):
+        lines.append(format_review_line(r, index=i))
+        lines.append('')
+    if len(pending) > 15:
+        lines.append(f'… and {len(pending) - 15} more.')
+    await update.effective_message.reply_text('\n'.join(lines).rstrip()[:4000])
 
 
 async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
