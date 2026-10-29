@@ -74,6 +74,54 @@ def matching_rows(profiles: list[dict], filters: dict, *, include_review: bool =
     return result[:limit]
 
 
+def empty_matches_reason(profiles: list[dict], filters: dict) -> str:
+    """Explain why /matches returned no confirmed Match rows."""
+    prefs = describe_filters(filters)
+    if not profiles:
+        return (
+            'No matching bride names found yet because the local profile database is empty. '
+            'This bot does not scrape group chat history. Import a Telegram Desktop JSON export '
+            'that contains CONSENT:YES (dashboard or import_history.py), or wait for new '
+            f'/submit CONSENT:YES profiles. Your filters: {prefs}'
+        )
+    review_rows = matching_rows(profiles, filters, include_review=True, limit=100)
+    needs_review = sum(1 for r in review_rows if r['status'] == 'Needs review')
+    adults = 0
+    group_blocked = 0
+    for p in profiles:
+        if p.get('duplicate_of'):
+            continue
+        age = get_age(p.get('dob'), p.get('age'))
+        if age is not None and age < 18:
+            continue
+        adults += 1
+        if filters.get('group') and filters['group'].casefold() not in (p.get('source_name') or '').casefold():
+            group_blocked += 1
+    if adults == 0:
+        return (
+            'No matching bride names found yet. Stored profiles are missing or only under-18 / duplicates. '
+            f'Your filters: {prefs}'
+        )
+    if filters.get('group') and group_blocked == adults:
+        return (
+            f'No matching bride names found yet. /setgroup "{filters["group"]}" did not match any '
+            f'profile source_name ({adults} adult profile(s) on file). Check /filters or clear that group filter. '
+            f'Your filters: {prefs}'
+        )
+    if needs_review:
+        return (
+            f'No confirmed matches for your filters yet, but {needs_review} profile(s) are incomplete '
+            f'(Needs review) for a requested field. Send /review to inspect them, loosen /filters, '
+            'or await new consented submissions. '
+            f'Your filters: {prefs}'
+        )
+    return (
+        f'No matching bride names found yet among {adults} adult consented profile(s). '
+        'Your filters may be too strict (age/star/birthplace/rashi/education are combined with AND). '
+        f'Check /filters or await new consented submissions. Your filters: {prefs}'
+    )
+
+
 def describe_filters(f: dict) -> str:
     parts = []
     if f.get('min_age') is not None or f.get('max_age') is not None:

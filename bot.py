@@ -18,7 +18,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from core import parse_profile, store_profile, delete_by_submitter, load_profiles, is_match, get_age
 from preferences import (EMPTY, read_filters, save_filters, clear_filters,
-                         configured, describe_filters, criteria, matching_rows)
+                         configured, describe_filters, criteria, matching_rows,
+                         empty_matches_reason)
 from reports import to_xlsx, to_docx, to_pdf
 
 load_dotenv()
@@ -230,7 +231,8 @@ async def matches(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if rows is None:
         return
     if not rows:
-        await update.effective_message.reply_text('No matching bride names found yet. Check /filters or await new consented submissions.')
+        prefs = read_filters(update.effective_user.id)
+        await update.effective_message.reply_text(empty_matches_reason(load_profiles(), prefs))
         return
     lines = [f'Found {len(rows)} matching profiles (up to 100). Your requirements: {describe_filters(read_filters(update.effective_user.id))}', '']
     for i, p in enumerate(rows[:20], 1):
