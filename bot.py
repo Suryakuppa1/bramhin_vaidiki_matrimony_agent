@@ -38,34 +38,40 @@ ENABLE_MATCH_ALERTS = os.getenv('ENABLE_MATCH_ALERTS', 'true').lower() in ('1', 
 TEMPLATE = (
     'New profile submission (subject consent required):\n'
     '/submit CONSENT:YES\n'
+    'Gender: Male\n'
     'Name: Example Name\n'
-    'DOB: 14-07-1999\n'
-    'Nakshatram: Rohini\n'
-    'Rashi: Vrishabha\n'
+    'Father name: Parent Name\n'
+    'Mothername: Parent Name\n'
+    'DOB: 30-07-1995\n'
+    'Nakshatram: Maka, 4 PADAM\n'
+    'Rashi: SIMHA\n'
     'Gotram: Bharadwaja\n'
     'Saka: Vaidiki Velanadu\n'
-    'Place of Birth: Hyderabad\n'
-    'Education: B.Tech\n\n'
-    'Telugu labels also work (పేరు, నక్షత్రం, రాశి, గోత్రం, వైదికి వేలనాడు, …). '
+    'Place of Birth: Vijayawada\n'
+    'Education: B. Tech. (Civil)\n\n'
+    'Telugu labels also work. Do NOT include phone numbers — they are ignored and never stored. '
     'Only submit your own profile or one you are explicitly authorized to submit. '
-    'By submitting you authorize private matchmaking storage/results; use /delete_my_profiles to revoke. '
-    'Do not include phone numbers, addresses or government IDs.'
+    'By submitting you authorize private matchmaking storage/results; use /delete_my_profiles to revoke.'
 )
 HELP = (
     'Private search commands (authorized users only).\n'
-    'Easiest: /menu — tap Nakshatram, Rashi, Gotram, Saka, place, age, then Show matches.\n'
+    'Easiest: /menu — tap Gender, Nakshatram, Padam, Rashi, place, age, then Show matches.\n'
     'Options come from profiles already imported into your local database.\n\n'
     'Or set manually (Telugu or English):\n'
+    '/setgender Male\n'
     '/setage 23 28\n'
-    '/setstar Rohini   (or /setstar రోహిణి)\n'
-    '/setrashi Vrishabha\n'
+    '/setstar Maka   (Magha / మఖ also work)\n'
+    '/setpadam 4\n'
+    '/setrashi SIMHA\n'
     '/setgotram Bharadwaja\n'
     '/setsaka Vaidiki Velanadu\n'
-    '/setname Ananya\n'
-    '/setbirthplace Hyderabad\n'
+    '/setname Venkatesh\n'
+    '/setfather Sree Hari\n'
+    '/setmother Madhavi\n'
+    '/setbirthplace Vijayawada\n'
     '/seteducation B.Tech\n'
     '/setgroup Marriage Group Name\n'
-    '/setdob 1997-01-01 2003-12-31\n'
+    '/setdob 1995-01-01 1996-12-31\n'
     '/filters – show requirements\n'
     '/matches – matching profiles for those filters only\n'
     '/review – include incomplete profiles\n'
@@ -74,7 +80,7 @@ HELP = (
     '/myid – show your Telegram ID\n'
     '/delete_my_profiles – revoke submissions from your account\n\n'
     'In approved groups use /submit CONSENT:YES followed by labeled fields.\n'
-    'Old history is not accessible through the Bot API; authorized, consent-tagged JSON profiles can be imported in the local dashboard.'
+    'Phone numbers are never stored. Import text via resources/ or consent-tagged JSON.'
 )
 
 
@@ -204,6 +210,34 @@ async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text('Usage: /setname Ananya')
         return
     await _set_filter(update, 'name', ' '.join(context.args))
+
+
+async def setgender(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.effective_message.reply_text('Usage: /setgender Male   (or Female)')
+        return
+    await _set_filter(update, 'gender', ' '.join(context.args))
+
+
+async def setfather(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.effective_message.reply_text('Usage: /setfather Sree Hari Rao')
+        return
+    await _set_filter(update, 'father_name', ' '.join(context.args))
+
+
+async def setmother(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.effective_message.reply_text('Usage: /setmother Madhavi')
+        return
+    await _set_filter(update, 'mother_name', ' '.join(context.args))
+
+
+async def setpadam(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args or context.args[0] not in ('1', '2', '3', '4'):
+        await update.effective_message.reply_text('Usage: /setpadam 4')
+        return
+    await _set_filter(update, 'padam', context.args[0])
 
 
 async def seteducation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -467,7 +501,9 @@ def main():
     for cmd, fn in [('start', start), ('help', start), ('myid', myid), ('submit', submit),
                     ('setage', setage), ('setstar', setstar), ('setbirthplace', setbirthplace),
                     ('setrashi', setrashi), ('setgotram', setgotram), ('setsaka', setsaka),
-                    ('setname', setname), ('seteducation', seteducation), ('setgroup', setgroup),
+                    ('setname', setname), ('setgender', setgender), ('setfather', setfather),
+                    ('setmother', setmother), ('setpadam', setpadam),
+                    ('seteducation', seteducation), ('setgroup', setgroup),
                     ('setdob', setdob), ('filters', filters), ('clearfilters', clear),
                     ('menu', menu), ('options', menu),
                     ('matches', matches), ('review', review), ('export', export),

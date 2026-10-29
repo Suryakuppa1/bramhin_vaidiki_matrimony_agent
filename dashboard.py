@@ -23,16 +23,20 @@ with st.expander("Import old Telegram JSON history", expanded=False):
         st.success(f"Processed {n} profile messages. Repeated imports update by source/message ID.")
 
 all_rows = load_profiles()
-st.sidebar.header("Bride requirements")
+st.sidebar.header("Match requirements")
 use_age = st.sidebar.checkbox("Filter by age", True)
 minage, maxage = st.sidebar.slider("Age range", 18, 60, (22, 29), disabled=not use_age)
-name_q = st.sidebar.text_input("Name contains", placeholder="Ananya / అనన్య")
-stars = st.sidebar.text_input("Nakshatram (comma-separated)", placeholder="Rohini or రోహిణి")
-rashi = st.sidebar.text_input("Rashi", placeholder="Vrishabha or వృషభ")
+gender = st.sidebar.text_input("Gender", placeholder="Male / Female")
+name_q = st.sidebar.text_input("Name contains", placeholder="Venkatesh")
+father_q = st.sidebar.text_input("Father name contains", placeholder="Sree Hari")
+mother_q = st.sidebar.text_input("Mother name contains", placeholder="Madhavi")
+stars = st.sidebar.text_input("Nakshatram (comma-separated)", placeholder="Maka / Magha")
+padam = st.sidebar.text_input("Padam", placeholder="1 / 2 / 3 / 4")
+rashi = st.sidebar.text_input("Rashi", placeholder="SIMHA / Leo")
 gotram = st.sidebar.text_input("Gotram", placeholder="Bharadwaja or భరద్వాజ")
 saka = st.sidebar.text_input("Saka / sect", placeholder="Vaidiki Velanadu")
-city = st.sidebar.text_input("Place of birth", placeholder="Hyderabad or హైదరాబాద్")
-education = st.sidebar.text_input("Education contains", placeholder="B.Tech, MBA")
+city = st.sidebar.text_input("Place of birth", placeholder="Vijayawada")
+education = st.sidebar.text_input("Education contains", placeholder="B.Tech, Civil")
 use_dob = st.sidebar.checkbox("Filter by date of birth", False)
 dob_values = st.sidebar.date_input("DOB from/to", value=(date(1995, 1, 1), date(2005, 12, 31)), disabled=not use_dob)
 show_incomplete = st.sidebar.checkbox("Include profiles with missing fields (Needs review)", True)
@@ -40,12 +44,14 @@ show_nonmatches = st.sidebar.checkbox("Show non-matches", False)
 include_duplicates = st.sidebar.checkbox("Include possible duplicates", False)
 
 criteria = dict(min_age=minage if use_age else None, max_age=maxage if use_age else None,
-                name=name_q, stars=stars, birthplace=city, rashi=rashi,
+                name=name_q, gender=gender, father_name=father_q, mother_name=mother_q,
+                stars=stars, padam=padam, birthplace=city, rashi=rashi,
                 gotram=gotram, saka=saka, education=education)
 if use_dob and isinstance(dob_values, (tuple, list)) and len(dob_values) == 2:
     criteria.update(dob_start=dob_values[0], dob_end=dob_values[1])
 filters_summary = f"Age: {minage}-{maxage}" if use_age else "Any age"
-for label, val in (("Name", name_q), ("Nakshatram", stars), ("Rashi", rashi),
+for label, val in (("Gender", gender), ("Name", name_q), ("Father", father_q), ("Mother", mother_q),
+                   ("Nakshatram", stars), ("Padam", padam), ("Rashi", rashi),
                    ("Gotram", gotram), ("Saka", saka), ("Birthplace", city), ("Education", education)):
     if val.strip():
         filters_summary += f" | {label}: {val.strip()}"
@@ -74,9 +80,10 @@ c4.metric("Displayed", len(rows))
 st.caption("Filters are AND'd. Telugu/English aliases for star, rashi, gotram, saka and common places match as the same value. Missing requested fields are Needs review.")
 preview = []
 for r in rows:
-    preview.append({"Bride Name":r.get("name"), "Age":r.get("age"), "DOB":r.get("dob"),
-        "Nakshatram":r.get("nakshatram"), "Rashi":r.get("rashi"), "Gotram":r.get("gotram"),
-        "Saka":r.get("saka"), "Place of Birth":r.get("birthplace"),
+    preview.append({"Name":r.get("name"), "Gender":r.get("gender"), "Age":r.get("age"), "DOB":r.get("dob"),
+        "Father":r.get("father_name"), "Mother":r.get("mother_name"),
+        "Nakshatram":r.get("nakshatram"), "Padam":r.get("padam"), "Rashi":r.get("rashi"),
+        "Gotram":r.get("gotram"), "Saka":r.get("saka"), "Place of Birth":r.get("birthplace"),
         "Education":r.get("education"), "Group":r.get("source_name"), "Message ID":r.get("source_ref"),
         "Status":r.get("status"), "Duplicate?":bool(r.get("duplicate_of"))})
 st.dataframe(preview, use_container_width=True, hide_index=True)

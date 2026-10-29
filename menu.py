@@ -5,13 +5,15 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from core import (
     STAR_ALIASES, RASHI_ALIASES, GOTRAM_ALIASES, SAKA_ALIASES, PLACE_ALIASES,
-    field_value_counts, load_profiles,
+    GENDER_ALIASES, field_value_counts, load_profiles,
 )
 from preferences import describe_filters, read_filters
 
 # callback_data must stay <= 64 bytes. Use short codes + option index.
 FIELD_SPECS = {
+    "gender": {"label": "Gender", "profile_field": "gender", "aliases": GENDER_ALIASES, "filter_key": "gender"},
     "stars": {"label": "Nakshatram (star)", "profile_field": "nakshatram", "aliases": STAR_ALIASES, "filter_key": "stars"},
+    "padam": {"label": "Padam", "profile_field": "padam", "aliases": None, "filter_key": "padam"},
     "rashi": {"label": "Rashi", "profile_field": "rashi", "aliases": RASHI_ALIASES, "filter_key": "rashi"},
     "gotram": {"label": "Gotram", "profile_field": "gotram", "aliases": GOTRAM_ALIASES, "filter_key": "gotram"},
     "saka": {"label": "Saka / Velanadu", "profile_field": "saka", "aliases": SAKA_ALIASES, "filter_key": "saka"},
@@ -37,20 +39,24 @@ def display_value(value: str) -> str:
 def home_keyboard() -> InlineKeyboardMarkup:
     rows = [
         [
-            InlineKeyboardButton("Nakshatram", callback_data="menu:list:stars"),
-            InlineKeyboardButton("Rashi", callback_data="menu:list:rashi"),
-        ],
-        [
-            InlineKeyboardButton("Gotram", callback_data="menu:list:gotram"),
-            InlineKeyboardButton("Saka", callback_data="menu:list:saka"),
-        ],
-        [
-            InlineKeyboardButton("Birthplace", callback_data="menu:list:birthplace"),
-            InlineKeyboardButton("Education", callback_data="menu:list:education"),
-        ],
-        [
-            InlineKeyboardButton("Source group", callback_data="menu:list:group"),
+            InlineKeyboardButton("Gender", callback_data="menu:list:gender"),
             InlineKeyboardButton("Age range", callback_data="menu:list:age"),
+        ],
+        [
+            InlineKeyboardButton("Nakshatram", callback_data="menu:list:stars"),
+            InlineKeyboardButton("Padam", callback_data="menu:list:padam"),
+        ],
+        [
+            InlineKeyboardButton("Rashi", callback_data="menu:list:rashi"),
+            InlineKeyboardButton("Gotram", callback_data="menu:list:gotram"),
+        ],
+        [
+            InlineKeyboardButton("Saka", callback_data="menu:list:saka"),
+            InlineKeyboardButton("Birthplace", callback_data="menu:list:birthplace"),
+        ],
+        [
+            InlineKeyboardButton("Education", callback_data="menu:list:education"),
+            InlineKeyboardButton("Source group", callback_data="menu:list:group"),
         ],
         [
             InlineKeyboardButton("Show matches", callback_data="menu:act:matches"),

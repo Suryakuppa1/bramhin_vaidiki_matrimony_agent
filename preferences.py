@@ -10,7 +10,8 @@ from core import connect, is_match, get_age, star_value_counts
 
 EMPTY = {
     "min_age": None, "max_age": None, "stars": "", "birthplace": "", "rashi": "",
-    "gotram": "", "saka": "", "name": "", "education": "",
+    "gotram": "", "saka": "", "name": "", "gender": "", "father_name": "",
+    "mother_name": "", "padam": "", "education": "",
     "dob_start": None, "dob_end": None, "group": "",
 }
 
@@ -140,9 +141,11 @@ def describe_filters(f: dict) -> str:
     if f.get('min_age') is not None or f.get('max_age') is not None:
         parts.append(f"Age: {f.get('min_age') or 'any'}–{f.get('max_age') or 'any'}")
     for k, display in [
-        ('name', 'Name'), ('stars', 'Nakshatram'), ('rashi', 'Rashi'),
-        ('gotram', 'Gotram'), ('saka', 'Saka'), ('birthplace', 'Birthplace'),
-        ('education', 'Education'), ('group', 'Source group'),
+        ('name', 'Name'), ('gender', 'Gender'), ('father_name', 'Father'),
+        ('mother_name', 'Mother'), ('stars', 'Nakshatram'), ('padam', 'Padam'),
+        ('rashi', 'Rashi'), ('gotram', 'Gotram'), ('saka', 'Saka'),
+        ('birthplace', 'Birthplace'), ('education', 'Education'),
+        ('group', 'Source group'),
     ]:
         if f.get(k):
             parts.append(f"{display}: {f[k]}")

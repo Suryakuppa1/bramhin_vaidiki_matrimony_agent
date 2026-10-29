@@ -13,14 +13,25 @@ from typing import Any
 
 DB_PATH = Path(__file__).parent / "data" / "profiles.sqlite3"
 FIELDS = (
-    "name", "dob", "age", "nakshatram", "rashi", "gotram", "saka",
+    "name", "gender", "father_name", "mother_name", "dob", "age",
+    "nakshatram", "padam", "rashi", "gotram", "saka",
     "birthplace", "birthtime", "education", "location",
 )
+# Phone / contact labels are recognized only so they can be ignored — never stored.
+CONTACT_LABELS = {
+    "contact", "contact number", "contactnumber", "phone", "phone number",
+    "mobile", "mobile number", "whatsapp", "whatsapp number", "cell",
+    "ఫోన్", "మొబైల్", "సంప్రదింపు",
+}
 LABELS = {
-    "name": ("name", "bride name", "girl name", "పేరు", "వధువు పేరు"),
+    "name": ("name", "bride name", "girl name", "groom name", "boy name", "పేరు", "వధువు పేరు", "వరుడు పేరు"),
+    "gender": ("gender", "sex", "లింగం"),
+    "father_name": ("father name", "father's name", "fathername", "s/o", "so", "తండ్రి పేరు", "తండ్రి"),
+    "mother_name": ("mother name", "mother's name", "mothername", "d/o", "do", "మాత పేరు", "తల్లి పేరు", "తల్లి"),
     "dob": ("dob", "date of birth", "birth date", "పుట్టిన తేదీ", "జన్మ తేదీ"),
     "age": ("age", "వయస్సు"),
     "nakshatram": ("nakshatram", "nakshatra", "star", "birth star", "నక్షత్రం"),
+    "padam": ("padam", "paadam", "pada", "పాదం", "పదం"),
     "rashi": ("rashi", "raasi", "rasi", "రాశి"),
     "gotram": ("gotram", "gothram", "gotra", "గోత్రం", "గోత్రము"),
     "saka": ("saka", "sakha", "sect", "subsect", "sub sect", "velanadu", "vaidiki",
@@ -29,6 +40,10 @@ LABELS = {
     "birthtime": ("time of birth", "birth time", "జన్మ సమయం", "పుట్టిన సమయం"),
     "education": ("education", "qualification", "degree", "విద్య", "చదువు"),
     "location": ("current city", "present location", "current location", "residing at", "నివాసం", "ప్రస్తుత నగరం"),
+}
+GENDER_ALIASES = {
+    "male": ["male", "m", "boy", "groom", "man", "పురుషుడు", "మగ"],
+    "female": ["female", "f", "girl", "bride", "woman", "స్త్రీ", "ఆడ"],
 }
 # Telugu + English spellings normalize to one key so either language matches in search.
 STAR_ALIASES = {
@@ -42,7 +57,7 @@ STAR_ALIASES = {
     ],
     "ardra": ["ardra", "arudra", "ఆర్ద్ర"], "punarvasu": ["punarvasu", "పునర్వసు"],
     "pushyami": ["pushyami", "pushya", "పుష్యమి"], "aslesha": ["aslesha", "ashlesha", "ఆశ్లేష"],
-    "magha": ["magha", "makha", "మఖ"], "pubba": ["pubba", "purva phalguni", "పుబ్బ"],
+    "magha": ["magha", "makha", "maka", "makaa", "మఖ", "మఖా"], "pubba": ["pubba", "purva phalguni", "పుబ్బ"],
     "uttara": ["uttara", "uttara phalguni", "ఉత్తర"], "hasta": ["hasta", "హస్త"],
     "chitta": ["chitta", "chitra", "చిత్త"], "visakha": ["visakha", "vishakha", "విశాఖ"],
     "anuradha": ["anuradha", "అనూరాధ"], "jyestha": ["jyestha", "jyeshta", "జ్యేష్ఠ"],
@@ -115,7 +130,24 @@ def normalized(s: str | None) -> str:
 
 
 def _compact_token(s: str) -> str:
-    return re.sub(r"[\s\-_/]+", "", s)
+    return re.sub(r"[\s\-_/.,]+", "", s)
+
+
+def split_star_and_padam(value: str | None) -> tuple[str | None, str | None]:
+    """Split values like 'Maka, 4 PADAM' into star + padam number."""
+    if not value:
+        return None, None
+    text = value.strip()
+    padam = None
+    match = re.search(r"(?:,|/|-|\s)\s*([1-4])(?:st|nd|rd|th)?\s*padams?\b", text, re.I)
+    if match:
+        padam = match.group(1)
+        text = (text[: match.start()] + text[match.end() :]).strip(" ,/-")
+    else:
+        only = re.fullmatch(r"\s*([1-4])(?:st|nd|rd|th)?\s*padams?\s*", text, re.I)
+        if only:
+            return None, only.group(1)
+    return (text or None), padam
 
 
 def _strip_field_suffix(s: str) -> str:
@@ -270,6 +302,7 @@ def get_age(dob: str | None, fallback: int | None = None, today: date | None = N
 def parse_profile(text: str) -> dict | None:
     """Conservative extractor for labeled Telugu/English matrimonial messages.
     Unlabeled content and images are intentionally queued for manual review externally.
+    Contact numbers are never stored.
     """
     extracted: dict[str, Any] = {field: None for field in FIELDS}
     for line in text.splitlines():
@@ -279,6 +312,8 @@ def parse_profile(text: str) -> dict | None:
             continue
         key, value = normalized(m.group(1)).strip("* _"), m.group(2).strip("* _")
         if not value:
+            continue
+        if key in CONTACT_LABELS:
             continue
         for field, possible in LABELS.items():
             if key in possible:
@@ -294,7 +329,15 @@ def parse_profile(text: str) -> dict | None:
             extracted["age"] = None
     extracted["age"] = get_age(extracted["dob"], extracted["age"])
     if extracted["nakshatram"]:
-        extracted["nakshatram"] = normalized_star(extracted["nakshatram"])
+        star_raw, padam_from_star = split_star_and_padam(extracted["nakshatram"])
+        if padam_from_star and not extracted.get("padam"):
+            extracted["padam"] = padam_from_star
+        extracted["nakshatram"] = normalized_star(star_raw) if star_raw else None
+    if extracted.get("padam"):
+        padam_match = re.search(r"\b([1-4])\b", str(extracted["padam"]))
+        extracted["padam"] = padam_match.group(1) if padam_match else None
+    if extracted.get("gender"):
+        extracted["gender"] = canonical(extracted["gender"], GENDER_ALIASES) or None
     if extracted["rashi"]:
         extracted["rashi"] = canonical(extracted["rashi"], RASHI_ALIASES)
     if extracted["gotram"]:
@@ -306,10 +349,17 @@ def parse_profile(text: str) -> dict | None:
         # Keep original city text when unknown; only replace known bilingual aliases.
         if place in PLACE_ALIASES:
             extracted["birthplace"] = place
+    if extracted.get("father_name"):
+        extracted["father_name"] = extracted["father_name"][:120]
+    if extracted.get("mother_name"):
+        extracted["mother_name"] = extracted["mother_name"][:120]
     # Avoid collecting unrelated group chat accidentally.
     present = sum(bool(extracted[x]) for x in (
-        "name", "dob", "age", "nakshatram", "gotram", "saka", "birthplace", "education"))
-    signal = bool(re.search(r"\b(bride|matrimony|marriage|biodata|profile)\b|వధువు|వివాహం|#marriageprofile", text, re.I))
+        "name", "dob", "age", "nakshatram", "gotram", "saka", "birthplace", "education", "gender"))
+    signal = bool(re.search(
+        r"\b(bride|groom|matrimony|marriage|biodata|profile)\b|వధువు|వరుడు|వివాహం|#marriageprofile",
+        text, re.I,
+    ))
     if present < 2 and not (signal and present >= 1):
         return None
     return extracted
@@ -321,7 +371,8 @@ def connect() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("""CREATE TABLE IF NOT EXISTS profiles (
-       id TEXT PRIMARY KEY, name TEXT, dob TEXT, age INTEGER, nakshatram TEXT,
+       id TEXT PRIMARY KEY, name TEXT, gender TEXT, father_name TEXT, mother_name TEXT,
+       dob TEXT, age INTEGER, nakshatram TEXT, padam TEXT,
        rashi TEXT, gotram TEXT, saka TEXT, birthplace TEXT, birthtime TEXT,
        education TEXT, location TEXT,
        source_name TEXT NOT NULL, source_ref TEXT NOT NULL,
@@ -329,13 +380,14 @@ def connect() -> sqlite3.Connection:
        fingerprint TEXT, duplicate_of TEXT, inserted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""")
     existing = {row[1] for row in con.execute("PRAGMA table_info(profiles)")}
-    for column in ("gotram", "saka"):
+    for column in ("gotram", "saka", "gender", "father_name", "mother_name", "padam"):
         if column not in existing:
             con.execute(f"ALTER TABLE profiles ADD COLUMN {column} TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS idx_profile_name ON profiles(name)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_profile_star ON profiles(nakshatram)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_profile_gotram ON profiles(gotram)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_profile_saka ON profiles(saka)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_profile_gender ON profiles(gender)")
     con.commit()
     return con
 
@@ -466,6 +518,7 @@ def delete_by_submitter(submitter_id: str) -> int:
 def is_match(profile: dict, *, min_age: int | None = None, max_age: int | None = None,
              stars: str = "", birthplace: str = "", education: str = "",
              rashi: str = "", gotram: str = "", saka: str = "", name: str = "",
+             gender: str = "", father_name: str = "", mother_name: str = "", padam: str = "",
              dob_start: date | None = None, dob_end: date | None = None) -> str:
     """Returns Match / Needs review / No match. Missing fields never match silently.
 
@@ -480,7 +533,11 @@ def is_match(profile: dict, *, min_age: int | None = None, max_age: int | None =
             return "No match"
     checks = [
         ("name", name, None, "contains"),
+        ("gender", gender, GENDER_ALIASES, "exact"),
+        ("father_name", father_name, None, "contains"),
+        ("mother_name", mother_name, None, "contains"),
         ("nakshatram", stars, STAR_ALIASES, "exact"),
+        ("padam", padam, None, "exact"),
         ("rashi", rashi, RASHI_ALIASES, "exact"),
         ("gotram", gotram, GOTRAM_ALIASES, "exact"),
         ("saka", saka, SAKA_ALIASES, "exact"),
