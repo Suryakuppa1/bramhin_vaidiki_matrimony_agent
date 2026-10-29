@@ -125,6 +125,31 @@ def normalized_star(value: str | None) -> str:
     return canonical(value, STAR_ALIASES)
 
 
+def field_value_counts(
+    profiles: list[dict],
+    *,
+    field: str,
+    alias_map: dict[str, list[str]] | None = None,
+    limit: int = 24,
+) -> list[tuple[str, int]]:
+    """Count canonical values for a profile field among adult non-duplicate rows."""
+    counts: dict[str, int] = {}
+    for profile in profiles:
+        if profile.get("duplicate_of"):
+            continue
+        age = get_age(profile.get("dob"), profile.get("age"))
+        if age is not None and age < 18:
+            continue
+        raw = profile.get(field)
+        if not raw:
+            continue
+        key = canonical(str(raw), alias_map) if alias_map else normalized(str(raw))
+        if not key:
+            continue
+        counts[key] = counts.get(key, 0) + 1
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+
+
 def field_choices_match(filter_value: str, profile_value: str | None, *,
                         alias_map: dict[str, list[str]] | None = None,
                         mode: str = "exact") -> bool | None:

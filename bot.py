@@ -1,9 +1,10 @@
 """Consent-based Telegram marriage profiles with private self-service matching.
 
 Commands in allowlisted groups: /submit CONSENT:YES ...
-Commands in private chat: /setage, /setstar, /setrashi, /setgotram, /setsaka,
-/setname, /setbirthplace, /seteducation, /setgroup, /setdob, /filters, /matches,
-/review, /export, /clearfilters. Telugu or English filter values both work.
+Commands in private chat: /menu (tap filters), /setage, /setstar, /setrashi,
+/setgotram, /setsaka, /setname, /setbirthplace, /seteducation, /setgroup, /setdob,
+/filters, /matches, /review, /export, /clearfilters.
+Telugu or English filter values both work.
 
 This bot does NOT scrape group history or index ordinary messages.
 """
@@ -16,11 +17,15 @@ import re
 from datetime import date
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
 from core import parse_profile, store_profile, delete_by_submitter, load_profiles, is_match, get_age
 from preferences import (EMPTY, read_filters, save_filters, clear_filters,
                          configured, describe_filters, criteria, matching_rows,
                          empty_matches_reason)
+from menu import (
+    FIELD_SPECS, home_keyboard, home_text, options_keyboard,
+    age_keyboard, build_field_options, display_value,
+)
 from reports import to_xlsx, to_docx, to_pdf
 
 load_dotenv()
@@ -48,7 +53,9 @@ TEMPLATE = (
 )
 HELP = (
     'Private search commands (authorized users only).\n'
-    'Telugu or English values both match the same detail:\n'
+    'Easiest: /menu — tap Nakshatram, Rashi, Gotram, Saka, place, age, then Show matches.\n'
+    'Options come from profiles already imported into your local database.\n\n'
+    'Or set manually (Telugu or English):\n'
     '/setage 23 28\n'
     '/setstar Rohini   (or /setstar రోహిణి)\n'
     '/setrashi Vrishabha\n'
@@ -245,6 +252,133 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text('Your requirements are cleared. Set at least one filter before /matches.')
 
 
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_private_owner(update):
+        return
+    await update.effective_message.reply_text(
+        home_text(update.effective_user.id),
+        reply_markup=home_keyboard(),
+    )
+
+
+async def _reply_matches_text(update: Update, user_id: int) -> str:
+    prefs = read_filters(user_id)
+    if not configured(prefs):
+        return 'Please set a requirement first from /menu (or /setage, /setstar, …).'
+    rows = matching_rows(load_profiles(), prefs, limit=100)
+    if not rows:
+        return empty_matches_reason(load_profiles(), prefs)
+    lines = [
+        f'Found {len(rows)} matching profiles (up to 100). Your requirements: {describe_filters(prefs)}',
+        '',
+    ]
+    for i, p in enumerate(rows[:20], 1):
+        lines.append(
+            f'{i}. {p.get("name") or "Name unavailable"} | Age {p.get("age") or "?"} | '
+            f'{p.get("nakshatram") or "Star unknown"} | {p.get("gotram") or "Gotram n/a"} | '
+            f'{p.get("saka") or "Saka n/a"} | {p.get("source_name") or "Opt-in"}'
+        )
+    if len(rows) > 20:
+        lines.append(f'... plus {len(rows)-20} more. Use /export excel to view the complete filtered list.')
+    return '\n'.join(lines)
+
+
+async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not query or not query.data:
+        return
+    await query.answer()
+    if update.effective_chat.type != 'private':
+        await query.edit_message_text('Open a private DM with this bot and use /menu there.')
+        return
+    if not is_authorized(update):
+        await query.edit_message_text('Private matching is restricted. Send /myid to your bot administrator.')
+        return
+    user_id = update.effective_user.id
+    data = query.data
+    parts = data.split(':')
+    if len(parts) < 3 or parts[0] != 'menu':
+        return
+    action = parts[1]
+
+    if action == 'act' and parts[2] == 'home':
+        await query.edit_message_text(home_text(user_id), reply_markup=home_keyboard())
+        return
+    if action == 'act' and parts[2] == 'filters':
+        await query.edit_message_text(
+            f'Current filters: {describe_filters(read_filters(user_id))}',
+            reply_markup=home_keyboard(),
+        )
+        return
+    if action == 'act' and parts[2] == 'clear':
+        clear_filters(user_id)
+        await query.edit_message_text(
+            'Filters cleared.\n\n' + home_text(user_id),
+            reply_markup=home_keyboard(),
+        )
+        return
+    if action == 'act' and parts[2] == 'matches':
+        text = await _reply_matches_text(update, user_id)
+        await query.edit_message_text(text[:4000], reply_markup=home_keyboard())
+        return
+
+    if action == 'list' and parts[2] == 'age':
+        await query.edit_message_text(
+            'Pick an age range preset:',
+            reply_markup=age_keyboard(),
+        )
+        return
+
+    if action == 'list' and parts[2] in FIELD_SPECS:
+        field_code = parts[2]
+        options = build_field_options(field_code)
+        context.user_data[f'menu_opts_{field_code}'] = [value for value, _ in options]
+        label = FIELD_SPECS[field_code]['label']
+        if not options:
+            await query.edit_message_text(
+                f'No {label} values found in imported profiles yet. Import resources or wait for /submit, then /menu again.',
+                reply_markup=home_keyboard(),
+            )
+            return
+        await query.edit_message_text(
+            f'Pick {label} (counts from your local DB):',
+            reply_markup=options_keyboard(field_code, options),
+        )
+        return
+
+    if action == 'age' and len(parts) == 4:
+        lo, hi = int(parts[2]), int(parts[3])
+        prefs = read_filters(user_id)
+        prefs.update(min_age=lo, max_age=hi)
+        save_filters(user_id, prefs)
+        await query.edit_message_text(
+            f'Age set to {lo}–{hi}.\n\n' + home_text(user_id),
+            reply_markup=home_keyboard(),
+        )
+        return
+
+    if action == 'set' and len(parts) == 4 and parts[2] in FIELD_SPECS:
+        field_code = parts[2]
+        try:
+            index = int(parts[3])
+        except ValueError:
+            return
+        options = context.user_data.get(f'menu_opts_{field_code}') or [v for v, _ in build_field_options(field_code)]
+        if index < 0 or index >= len(options):
+            await query.edit_message_text('That option expired. Open /menu again.', reply_markup=home_keyboard())
+            return
+        value = options[index]
+        spec = FIELD_SPECS[field_code]
+        prefs = read_filters(user_id)
+        prefs[spec['filter_key']] = value
+        save_filters(user_id, prefs)
+        await query.edit_message_text(
+            f"Saved {spec['label']}: {display_value(value)}.\n\n" + home_text(user_id),
+            reply_markup=home_keyboard(),
+        )
+        return
+
+
 async def _get_rows(update: Update, *, review: bool = False, limit: int = 100):
     if not await require_private_owner(update):
         return None
@@ -335,11 +469,13 @@ def main():
                     ('setrashi', setrashi), ('setgotram', setgotram), ('setsaka', setsaka),
                     ('setname', setname), ('seteducation', seteducation), ('setgroup', setgroup),
                     ('setdob', setdob), ('filters', filters), ('clearfilters', clear),
+                    ('menu', menu), ('options', menu),
                     ('matches', matches), ('review', review), ('export', export),
                     ('delete_my_profiles', delete_mine)]:
         app.add_handler(CommandHandler(cmd, fn))
+    app.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu:'))
     logging.info('Opt-in matcher bot running; /matches and exports available only to authorized private users')
-    app.run_polling(allowed_updates=['message'])
+    app.run_polling(allowed_updates=['message', 'callback_query'])
 
 if __name__ == '__main__':
     main()
