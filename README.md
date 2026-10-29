@@ -79,17 +79,30 @@ In the Streamlit sidebar, enter your required age range, nakshatram (comma-separ
 
 The system is designed to work first on your own PC. For true 24x7 intake, the bot process and database must run on an **always-on, private host**. Keep the Streamlit UI behind authentication/VPN if accessed from mobile, use encrypted disks and secure backups, and establish permission/retention/deletion workflows. Do not port-forward the Streamlit dev server onto the open Internet.
 
-## 5) Test
+## 5) Local desktop Vault (full details including phone)
+
+The Telegram bot intentionally does **not** store phone numbers. For a local full-detail search over dumped files (txt / Excel / PDF / images / JSON), use the Vault:
+
+```bash
+# put exports in vault_inbox/
+streamlit run vault/app.py
+# or: python run_vault.py
+```
+
+In the UI: confirm permission → **Ingest inbox** → search by name / star / padam / phone / etc. Results show **all stored fields including ContactNumber**. Data lives in `data/vault.sqlite3` only (gitignored), separate from the bot DB.
+
+## 6) Test
 
 ```bash
 python -m unittest discover -s tests -v
 python import_history.py samples/telegram_export_sample.json --i-have-permission
 streamlit run dashboard.py
+streamlit run vault/app.py
 ```
 
 The fictional JSON file includes two profiles and one unrelated chat message. Once imported, adjust the sidebar criteria and use all export buttons.
 
-## 6) Suggested next iteration
+## 7) Suggested next iteration
 
 - Verified consent and privacy disclosures for people whose biodata is shared by relatives.
 - Editable review screen for unknown/inconsistent data, permissions and deletion requests.

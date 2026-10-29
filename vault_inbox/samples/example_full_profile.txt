@@ -1,0 +1,11 @@
+CONSENT:YES
+Gender: Male
+Name: SARVEPALLI VENKATESH BABU
+Father name: SREE HARI RAO SARVEPALLI
+Mothername: MADHAVI SARVEPALLI
+DOB: 30-07-1995
+Nakshatram: Maka, 4 PADAM
+Rashi: SIMHA
+Place of Birth: VIJAYAWADA
+Education: B. TECH. (Civil)
+ContactNumber: 9391073474, 6281790680, 9491728910

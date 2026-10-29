@@ -9,5 +9,10 @@ resources/*
 !resources/PUT_EXPORTS_HERE.txt
 !resources/samples/
 !resources/samples/**
+vault_inbox/*
+!vault_inbox/.gitkeep
+!vault_inbox/PUT_FILES_HERE.txt
+!vault_inbox/samples/
+!vault_inbox/samples/**
 *.sqlite3*
 *.session*

@@ -1,0 +1,28 @@
+Matrimony Vault inbox — drop exports here, then run:
+
+  streamlit run vault/app.py
+
+Supported:
+  .txt / .csv     labeled biodata or WhatsApp export text
+  .xlsx           Excel sheets (key/value columns or rows)
+  .pdf            text PDFs (needs pymupdf)
+  .json           Telegram Desktop JSON (message text)
+  .png/.jpg/…     image biodata (needs pillow + pytesseract + system tesseract)
+
+Example labeled block:
+
+  CONSENT:YES
+  Gender: Male
+  Name: Example Person
+  Father name: Parent
+  Mothername: Parent
+  DOB: 30-07-1995
+  Nakshatram: Maka, 4 PADAM
+  Rashi: SIMHA
+  Place of Birth: Vijayawada
+  Education: B. TECH. (Civil)
+  ContactNumber: 9999999999
+
+Vault stores full details including phone in data/vault.sqlite3 (local only).
+The Telegram bot DB never receives these phone numbers.
+Your real dumps under vault_inbox/ are gitignored.
