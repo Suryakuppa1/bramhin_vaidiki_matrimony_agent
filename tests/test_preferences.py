@@ -48,10 +48,19 @@ class PreferenceTests(unittest.TestCase):
         f = dict(min_age=None, max_age=None, stars='Rohini', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='')
         self.assertEqual(matching_rows(load_profiles(), f), [])
     def test_empty_matches_reason_empty_db(self):
-        f = dict(min_age=23, max_age=28, stars='', birthplace='', rashi='', education='', dob_start=None, dob_end=None, group='')
+        f = dict(min_age=23, max_age=28, stars='', birthplace='', rashi='', education='',
+                 gotram='', saka='', name='', dob_start=None, dob_end=None, group='')
         msg = empty_matches_reason([], f)
         self.assertIn('database is empty', msg)
         self.assertIn('does not scrape', msg)
+    def test_empty_matches_reason_lists_stars(self):
+        p = parse_profile(PROFILE)
+        store_profile(p, source_name='group', source_ref='star-miss', source_kind='opt_in_bot')
+        f = dict(min_age=20, max_age=30, stars='mrigasira', birthplace='', rashi='', education='',
+                 gotram='', saka='', name='', dob_start=None, dob_end=None, group='')
+        msg = empty_matches_reason(load_profiles(), f)
+        self.assertIn('Stars currently in DB', msg)
+        self.assertIn('rohini', msg)
     def test_empty_matches_reason_needs_review(self):
         p = parse_profile(PROFILE)
         store_profile(p, source_name='group', source_ref='4', source_kind='opt_in_bot')

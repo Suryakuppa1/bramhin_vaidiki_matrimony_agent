@@ -35,7 +35,11 @@ STAR_ALIASES = {
     "rohini": ["rohini", "రోహిణి"], "swati": ["swati", "swathi", "స్వాతి"],
     "ashwini": ["ashwini", "aswini", "అశ్విని"], "bharani": ["bharani", "భరణి"],
     "krithika": ["krithika", "krittika", "kritika", "కృత్తిక"],
-    "mrigashira": ["mrigashira", "mrigasira", "మృగశిర"],
+    "mrigashira": [
+        "mrigashira", "mrigasira", "mrugasira", "mrugashira", "mriga sira", "mrigashirsha",
+        "mrigasirsha", "mrigasiram", "mrigasira nakshatram", "mrigashira nakshatram",
+        "మృగశిర", "మృగశీర్షం", "మృగశిరషం", "మృగసిర",
+    ],
     "ardra": ["ardra", "arudra", "ఆర్ద్ర"], "punarvasu": ["punarvasu", "పునర్వసు"],
     "pushyami": ["pushyami", "pushya", "పుష్యమి"], "aslesha": ["aslesha", "ashlesha", "ఆశ్లేష"],
     "magha": ["magha", "makha", "మఖ"], "pubba": ["pubba", "purva phalguni", "పుబ్బ"],
@@ -110,15 +114,52 @@ def normalized(s: str | None) -> str:
     return re.sub(r"\s+", " ", (s or "").strip().casefold())
 
 
+def _compact_token(s: str) -> str:
+    return re.sub(r"[\s\-_/]+", "", s)
+
+
+def _strip_field_suffix(s: str) -> str:
+    return re.sub(
+        r"\s*(nakshatrams?|nakshatras?|birth\s*stars?|stars?|రాశి|నక్షత్రం|గోత్రం|గోత్రము)\s*$",
+        "",
+        s,
+        flags=re.I,
+    ).strip()
+
+
 def canonical(value: str | None, alias_map: dict[str, list[str]]) -> str:
-    """Map Telugu/English variants onto one search key."""
+    """Map Telugu/English variants onto one search key.
+
+    Accepts spaced/suffixed spellings (e.g. 'Mriga Sira', 'mrigasira nakshatram').
+    Longer aliases win so 'uttara' does not steal 'uttarashada'.
+    """
     s = normalized(value)
     if not s:
         return ""
+    cleaned = _strip_field_suffix(s)
+    compact = _compact_token(cleaned)
+    # Exact compact / raw match first.
     for key, variants in alias_map.items():
-        if s == key or s in variants:
+        opts = {_compact_token(normalized(v)) for v in variants}
+        opts.add(key)
+        opts.add(_compact_token(key))
+        if compact in opts or cleaned in variants or s in variants or s == key:
             return key
-    return s
+    # Containment match using longest alias token first.
+    candidates: list[tuple[int, str]] = []
+    for key, variants in alias_map.items():
+        opts = {_compact_token(normalized(v)) for v in variants}
+        opts.add(key)
+        opts.add(_compact_token(key))
+        for token in opts:
+            if len(token) < 5:
+                continue
+            if token in compact or compact in token:
+                candidates.append((len(token), key))
+    if candidates:
+        candidates.sort(reverse=True)
+        return candidates[0][1]
+    return cleaned or s
 
 
 def normalized_star(value: str | None) -> str:
@@ -141,12 +182,39 @@ def field_choices_match(filter_value: str, profile_value: str | None, *,
         if mode == "exact":
             if choice_key and choice_key == profile_key:
                 return True
+            # Last-resort compact equality when aliases missed both sides equally.
+            if choice_key and _compact_token(choice_key) == _compact_token(profile_key):
+                return True
         else:
             if choice_key and (choice_key in profile_key or profile_key in choice_key or choice_key == profile_key):
                 return True
             if normalized(choice) and normalized(choice) in raw:
                 return True
+            if _compact_token(normalized(choice)) and _compact_token(normalized(choice)) in _compact_token(raw):
+                return True
     return False
+
+
+def star_value_counts(profiles: list[dict], *, limit: int = 12) -> list[tuple[str, int]]:
+    """Return the most common canonical (or raw) nakshatrams among adult non-duplicate rows."""
+    counts: dict[str, int] = {}
+    missing = 0
+    for p in profiles:
+        if p.get("duplicate_of"):
+            continue
+        age = get_age(p.get("dob"), p.get("age"))
+        if age is not None and age < 18:
+            continue
+        raw = p.get("nakshatram")
+        if not raw:
+            missing += 1
+            continue
+        key = normalized_star(raw) or normalized(raw) or "(unknown)"
+        counts[key] = counts.get(key, 0) + 1
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:limit]
+    if missing:
+        ranked.append(("(missing star)", missing))
+    return ranked
 
 
 def parse_dob(value: str | None) -> str | None:
