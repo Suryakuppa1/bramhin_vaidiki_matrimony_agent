@@ -84,10 +84,17 @@ The system is designed to work first on your own PC. For true 24x7 intake, the b
 The Telegram bot intentionally does **not** store phone numbers. For a local full-detail search over dumped files (txt / Excel / PDF / images / JSON), use the Vault:
 
 ```bash
-# put exports in vault_inbox/
-streamlit run vault/app.py
-# or: python run_vault.py
+# put exports in vault_inbox/, then from the repo folder:
+
+# Recommended (works on Windows even if `streamlit` is not on PATH):
+python run_vault.py
+# or:
+python -m streamlit run vault/app.py
+
+# Windows shortcut: double-click run_vault.bat
 ```
+
+If PowerShell says `streamlit` is not recognized, that only means Scripts is not on PATH — use one of the `python …` commands above. Do not reinstall packages for that error.
 
 In the UI: confirm permission → **Ingest inbox** → search by name / star / padam / phone / etc. Results show **all stored fields including ContactNumber**. Data lives in `data/vault.sqlite3` only (gitignored), separate from the bot DB.
 
@@ -96,8 +103,8 @@ In the UI: confirm permission → **Ingest inbox** → search by name / star / p
 ```bash
 python -m unittest discover -s tests -v
 python import_history.py samples/telegram_export_sample.json --i-have-permission
-streamlit run dashboard.py
-streamlit run vault/app.py
+python -m streamlit run dashboard.py
+python -m streamlit run vault/app.py
 ```
 
 The fictional JSON file includes two profiles and one unrelated chat message. Once imported, adjust the sidebar criteria and use all export buttons.

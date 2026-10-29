@@ -1,7 +1,8 @@
 """Desktop Matrimony Vault UI — local full-detail search including phone numbers.
 
-Run from repo root:
-  streamlit run vault/app.py
+Run from repo root (Windows-friendly):
+  python run_vault.py
+  python -m streamlit run vault/app.py
 """
 from __future__ import annotations
 
