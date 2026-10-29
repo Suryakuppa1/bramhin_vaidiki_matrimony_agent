@@ -12,19 +12,26 @@ from pathlib import Path
 from typing import Any
 
 DB_PATH = Path(__file__).parent / "data" / "profiles.sqlite3"
-FIELDS = ("name", "dob", "age", "nakshatram", "rashi", "birthplace", "birthtime", "education", "location")
+FIELDS = (
+    "name", "dob", "age", "nakshatram", "rashi", "gotram", "saka",
+    "birthplace", "birthtime", "education", "location",
+)
 LABELS = {
     "name": ("name", "bride name", "girl name", "పేరు", "వధువు పేరు"),
     "dob": ("dob", "date of birth", "birth date", "పుట్టిన తేదీ", "జన్మ తేదీ"),
     "age": ("age", "వయస్సు"),
     "nakshatram": ("nakshatram", "nakshatra", "star", "birth star", "నక్షత్రం"),
     "rashi": ("rashi", "raasi", "rasi", "రాశి"),
+    "gotram": ("gotram", "gothram", "gotra", "గోత్రం", "గోత్రము"),
+    "saka": ("saka", "sakha", "sect", "subsect", "sub sect", "velanadu", "vaidiki",
+             "సాఖ", "శాఖ", "వేలనాడు", "వైదికి", "వైదికి వేలనాడు"),
     "birthplace": ("place of birth", "birthplace", "birth place", "born at", "జన్మస్థలం", "పుట్టిన స్థలం"),
     "birthtime": ("time of birth", "birth time", "జన్మ సమయం", "పుట్టిన సమయం"),
     "education": ("education", "qualification", "degree", "విద్య", "చదువు"),
     "location": ("current city", "present location", "current location", "residing at", "నివాసం", "ప్రస్తుత నగరం"),
 }
-ALIASES = {
+# Telugu + English spellings normalize to one key so either language matches in search.
+STAR_ALIASES = {
     "rohini": ["rohini", "రోహిణి"], "swati": ["swati", "swathi", "స్వాతి"],
     "ashwini": ["ashwini", "aswini", "అశ్విని"], "bharani": ["bharani", "భరణి"],
     "krithika": ["krithika", "krittika", "kritika", "కృత్తిక"],
@@ -34,7 +41,7 @@ ALIASES = {
     "magha": ["magha", "makha", "మఖ"], "pubba": ["pubba", "purva phalguni", "పుబ్బ"],
     "uttara": ["uttara", "uttara phalguni", "ఉత్తర"], "hasta": ["hasta", "హస్త"],
     "chitta": ["chitta", "chitra", "చిత్త"], "visakha": ["visakha", "vishakha", "విశాఖ"],
-    "anuradha": ["anuradha", "anuradha", "అనూరాధ"], "jyestha": ["jyestha", "jyeshta", "జ్యేష్ఠ"],
+    "anuradha": ["anuradha", "అనూరాధ"], "jyestha": ["jyestha", "jyeshta", "జ్యేష్ఠ"],
     "moola": ["moola", "mula", "మూల"], "purvashada": ["purvashada", "poorvashada", "పూర్వాషాఢ"],
     "uttarashada": ["uttarashada", "uttara ashadha", "ఉత్తరాషాఢ"],
     "sravana": ["sravana", "shravana", "శ్రవణం"], "dhanishta": ["dhanishta", "ధనిష్ఠ"],
@@ -42,17 +49,104 @@ ALIASES = {
     "purvabhadra": ["purvabhadra", "poorvabhadra", "పూర్వాభాద్ర"],
     "uttarabhadra": ["uttarabhadra", "ఉత్తరాభాద్ర"], "revati": ["revati", "రేవతి"],
 }
+RASHI_ALIASES = {
+    "mesha": ["mesha", "aries", "మేష"],
+    "vrishabha": ["vrishabha", "vrishaba", "rishabha", "taurus", "వృషభ"],
+    "mithuna": ["mithuna", "gemini", "మిథున"],
+    "karka": ["karka", "kataka", "cancer", "కర్కాటక", "కర్క"],
+    "simha": ["simha", "leo", "సింహ"],
+    "kanya": ["kanya", "virgo", "కన్య"],
+    "tula": ["tula", "thula", "libra", "తుల"],
+    "vrischika": ["vrischika", "vrishchika", "scorpio", "వృశ్చిక"],
+    "dhanu": ["dhanu", "dhanus", "sagittarius", "ధనుస్సు", "ధనుస్"],
+    "makara": ["makara", "capricorn", "మకర"],
+    "kumbha": ["kumbha", "aquarius", "కుంభ"],
+    "meena": ["meena", "pisces", "మీన"],
+}
+GOTRAM_ALIASES = {
+    "bharadwaja": ["bharadwaja", "bharadwaj", "bharadvaja", "భరద్వాజ", "భరద్వాజస"],
+    "kashyapa": ["kashyapa", "kasyapa", "కశ్యప"],
+    "atri": ["atri", "అత్రి"],
+    "vasishtha": ["vasishtha", "vashishta", "vasista", "వసిష్ఠ"],
+    "gautama": ["gautama", "gauthama", "గౌతమ"],
+    "jamadagni": ["jamadagni", "జమదగ్ని"],
+    "vishwamitra": ["vishwamitra", "viswamitra", "విశ్వామిత్ర"],
+    "kaundinya": ["kaundinya", "kowndinya", "కౌండిన్య"],
+    "srivatsa": ["srivatsa", "shrivatsa", "శ్రీవత్స"],
+    "harita": ["harita", "haarita", "హారీత", "హరిత"],
+    "kaushika": ["kaushika", "koushika", "కౌశిక"],
+    "moudgalya": ["moudgalya", "maudgalya", "మౌద్గల్య"],
+    "shandilya": ["shandilya", "sandilya", "శాండిల్య"],
+    "agastya": ["agastya", "అగస్త్య"],
+}
+SAKA_ALIASES = {
+    "vaidiki_velanadu": [
+        "vaidiki velanadu", "vaidiki velanadu brahmin", "velanadu", "velanati",
+        "vaidiki", "వైదికి వేలనాడు", "వేలనాడు", "వేలనాటి", "వైదికి",
+    ],
+    "vaidiki_venginadu": ["vaidiki venginadu", "venginadu", "వైదికి వేంగినాడు", "వేంగినాడు"],
+    "vaidiki_kosalanadu": ["vaidiki kosalanadu", "kosalanadu", "వైదికి కోసలనాడు", "కోసలనాడు"],
+    "niyogi": ["niyogi", "నియోగి"],
+    "dravida": ["dravida", "ద్రావిడ"],
+}
+PLACE_ALIASES = {
+    "hyderabad": ["hyderabad", "hyd", "హైదరాబాద్", "హైదరాబాదు"],
+    "vijayawada": ["vijayawada", "bezawada", "విజయవాడ"],
+    "visakhapatnam": ["visakhapatnam", "vizag", "విశాఖపట్నం"],
+    "tirupati": ["tirupati", "tirupathi", "తిరుపతి"],
+    "guntur": ["guntur", "గుంటూరు"],
+    "nellore": ["nellore", "నెల్లూరు"],
+    "kakinada": ["kakinada", "కాకినాడ"],
+    "rajahmundry": ["rajahmundry", "rajahmundry", "రాజమండ్రి"],
+    "warangal": ["warangal", "వరంగల్"],
+    "chennai": ["chennai", "madras", "చెన్నై"],
+    "bangalore": ["bangalore", "bengaluru", "బెంగళూరు", "బెంగళూర్"],
+}
+# Back-compat for older imports/tests.
+ALIASES = STAR_ALIASES
+
 
 def normalized(s: str | None) -> str:
     return re.sub(r"\s+", " ", (s or "").strip().casefold())
 
 
-def normalized_star(value: str | None) -> str:
+def canonical(value: str | None, alias_map: dict[str, list[str]]) -> str:
+    """Map Telugu/English variants onto one search key."""
     s = normalized(value)
-    for canonical, variants in ALIASES.items():
-        if s in variants:
-            return canonical
+    if not s:
+        return ""
+    for key, variants in alias_map.items():
+        if s == key or s in variants:
+            return key
     return s
+
+
+def normalized_star(value: str | None) -> str:
+    return canonical(value, STAR_ALIASES)
+
+
+def field_choices_match(filter_value: str, profile_value: str | None, *,
+                        alias_map: dict[str, list[str]] | None = None,
+                        mode: str = "exact") -> bool | None:
+    """OR across comma-separated filter choices. None => profile field missing."""
+    choices = [v.strip() for v in (filter_value or "").split(",") if v.strip()]
+    if not choices:
+        return True
+    raw = normalized(profile_value)
+    if not raw:
+        return None
+    profile_key = canonical(profile_value, alias_map) if alias_map else raw
+    for choice in choices:
+        choice_key = canonical(choice, alias_map) if alias_map else normalized(choice)
+        if mode == "exact":
+            if choice_key and choice_key == profile_key:
+                return True
+        else:
+            if choice_key and (choice_key in profile_key or profile_key in choice_key or choice_key == profile_key):
+                return True
+            if normalized(choice) and normalized(choice) in raw:
+                return True
+    return False
 
 
 def parse_dob(value: str | None) -> str | None:
@@ -108,8 +202,20 @@ def parse_profile(text: str) -> dict | None:
     extracted["age"] = get_age(extracted["dob"], extracted["age"])
     if extracted["nakshatram"]:
         extracted["nakshatram"] = normalized_star(extracted["nakshatram"])
+    if extracted["rashi"]:
+        extracted["rashi"] = canonical(extracted["rashi"], RASHI_ALIASES)
+    if extracted["gotram"]:
+        extracted["gotram"] = canonical(extracted["gotram"], GOTRAM_ALIASES)
+    if extracted["saka"]:
+        extracted["saka"] = canonical(extracted["saka"], SAKA_ALIASES)
+    if extracted["birthplace"]:
+        place = canonical(extracted["birthplace"], PLACE_ALIASES)
+        # Keep original city text when unknown; only replace known bilingual aliases.
+        if place in PLACE_ALIASES:
+            extracted["birthplace"] = place
     # Avoid collecting unrelated group chat accidentally.
-    present = sum(bool(extracted[x]) for x in ("name", "dob", "age", "nakshatram", "birthplace", "education"))
+    present = sum(bool(extracted[x]) for x in (
+        "name", "dob", "age", "nakshatram", "gotram", "saka", "birthplace", "education"))
     signal = bool(re.search(r"\b(bride|matrimony|marriage|biodata|profile)\b|వధువు|వివాహం|#marriageprofile", text, re.I))
     if present < 2 and not (signal and present >= 1):
         return None
@@ -123,13 +229,20 @@ def connect() -> sqlite3.Connection:
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("""CREATE TABLE IF NOT EXISTS profiles (
        id TEXT PRIMARY KEY, name TEXT, dob TEXT, age INTEGER, nakshatram TEXT,
-       rashi TEXT, birthplace TEXT, birthtime TEXT, education TEXT, location TEXT,
+       rashi TEXT, gotram TEXT, saka TEXT, birthplace TEXT, birthtime TEXT,
+       education TEXT, location TEXT,
        source_name TEXT NOT NULL, source_ref TEXT NOT NULL,
        source_kind TEXT NOT NULL, submitted_by TEXT, message_date TEXT,
        fingerprint TEXT, duplicate_of TEXT, inserted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""")
+    existing = {row[1] for row in con.execute("PRAGMA table_info(profiles)")}
+    for column in ("gotram", "saka"):
+        if column not in existing:
+            con.execute(f"ALTER TABLE profiles ADD COLUMN {column} TEXT")
     con.execute("CREATE INDEX IF NOT EXISTS idx_profile_name ON profiles(name)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_profile_star ON profiles(nakshatram)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_profile_gotram ON profiles(gotram)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_profile_saka ON profiles(saka)")
     con.commit()
     return con
 
@@ -259,9 +372,12 @@ def delete_by_submitter(submitter_id: str) -> int:
 
 def is_match(profile: dict, *, min_age: int | None = None, max_age: int | None = None,
              stars: str = "", birthplace: str = "", education: str = "",
-             rashi: str = "", dob_start: date | None = None,
-             dob_end: date | None = None) -> str:
-    """Returns Match / Needs review / No match. Missing fields never match silently."""
+             rashi: str = "", gotram: str = "", saka: str = "", name: str = "",
+             dob_start: date | None = None, dob_end: date | None = None) -> str:
+    """Returns Match / Needs review / No match. Missing fields never match silently.
+
+    Telugu and English aliases for star/rashi/gotram/saka/place compare as the same value.
+    """
     missing = False
     age = get_age(profile.get("dob"), profile.get("age"))
     if min_age is not None or max_age is not None:
@@ -270,17 +386,19 @@ def is_match(profile: dict, *, min_age: int | None = None, max_age: int | None =
         elif (min_age is not None and age < min_age) or (max_age is not None and age > max_age):
             return "No match"
     checks = [
-        ("nakshatram", stars, True), ("birthplace", birthplace, False),
-        ("education", education, False), ("rashi", rashi, False),
+        ("name", name, None, "contains"),
+        ("nakshatram", stars, STAR_ALIASES, "exact"),
+        ("rashi", rashi, RASHI_ALIASES, "exact"),
+        ("gotram", gotram, GOTRAM_ALIASES, "exact"),
+        ("saka", saka, SAKA_ALIASES, "exact"),
+        ("birthplace", birthplace, PLACE_ALIASES, "contains"),
+        ("education", education, None, "contains"),
     ]
-    for field, filter_value, star in checks:
-        choices = [normalized_star(v) if star else normalized(v) for v in filter_value.split(",") if v.strip()]
-        if not choices:
-            continue
-        value = normalized_star(profile.get(field)) if star else normalized(profile.get(field))
-        if not value:
+    for field, filter_value, alias_map, mode in checks:
+        result = field_choices_match(filter_value, profile.get(field), alias_map=alias_map, mode=mode)
+        if result is None:
             missing = True
-        elif not any(x == value if star else x in value for x in choices):
+        elif result is False:
             return "No match"
     if dob_start or dob_end:
         if not profile.get("dob"):
