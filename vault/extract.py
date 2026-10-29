@@ -9,6 +9,10 @@ EXCEL_SUFFIXES = {".xlsx", ".xlsm"}
 PDF_SUFFIXES = {".pdf"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
 JSON_SUFFIXES = {".json"}
+DOCX_SUFFIXES = {".docx"}
+SUPPORTED_SUFFIXES = (
+    TEXT_SUFFIXES | EXCEL_SUFFIXES | PDF_SUFFIXES | IMAGE_SUFFIXES | JSON_SUFFIXES | DOCX_SUFFIXES
+)
 
 
 def extract_text(path: Path) -> tuple[str, str]:
@@ -24,6 +28,8 @@ def extract_text(path: Path) -> tuple[str, str]:
         return _from_pdf(path), "pdf"
     if suffix in IMAGE_SUFFIXES:
         return _from_image(path), "image"
+    if suffix in DOCX_SUFFIXES:
+        return _from_docx(path), "docx"
     raise ValueError(f"Unsupported file type: {suffix or '(none)'}")
 
 
@@ -73,6 +79,25 @@ def _from_pdf(path: Path) -> str:
         return "\n".join(page.get_text("text") for page in doc)
     finally:
         doc.close()
+
+
+def _from_docx(path: Path) -> str:
+    try:
+        from docx import Document
+    except ImportError as exc:
+        raise ValueError("Word support needs python-docx. pip install python-docx") from exc
+    doc = Document(str(path))
+    lines = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text and cell.text.strip()]
+            if not cells:
+                continue
+            if len(cells) == 2:
+                lines.append(f"{cells[0]}: {cells[1]}")
+            else:
+                lines.append(" | ".join(cells))
+    return "\n".join(lines)
 
 
 def _from_image(path: Path) -> str:

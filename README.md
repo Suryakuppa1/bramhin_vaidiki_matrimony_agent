@@ -81,7 +81,7 @@ The system is designed to work first on your own PC. For true 24x7 intake, the b
 
 ## 5) Local desktop Vault (full details including phone)
 
-The Telegram bot intentionally does **not** store phone numbers. For a local full-detail search over dumped files (txt / Excel / PDF / images / JSON), use the Vault:
+The Telegram bot intentionally does **not** store phone numbers. For a local full-detail search over dumped files (txt / Excel / Word / PDF / images / JSON), use the Vault:
 
 ```bash
 # put exports in vault_inbox/, then from the repo folder:
@@ -96,7 +96,7 @@ python -m streamlit run vault/app.py
 
 If PowerShell says `streamlit` is not recognized, that only means Scripts is not on PATH — use one of the `python …` commands above. Do not reinstall packages for that error.
 
-In the UI: confirm permission → **Ingest inbox** → search by name / star / padam / phone / etc. Results show **all stored fields including ContactNumber**. Data lives in `data/vault.sqlite3` only (gitignored), separate from the bot DB.
+In the UI: confirm permission, press **Import files**, and choose biodata from your computer (text, Excel, Word, PDF, JSON, or a photo). Files already in `vault_inbox/` can be read with **Read inbox folder**. Pick values from the field menus (nothing to type), then press **Submit**. Each match opens as a biodata sheet, with Word, Excel, and text downloads. Data lives in `data/vault.sqlite3` only (gitignored), separate from the bot DB.
 
 ## 6) Test
 

@@ -46,6 +46,7 @@ def search_profiles(
     saka: str = "",
     birthplace: str = "",
     education: str = "",
+    location: str = "",
     phone: str = "",
     min_age: int | None = None,
     max_age: int | None = None,
@@ -117,6 +118,8 @@ def search_profiles(
         ):
             continue
         if not _contains(p.get("education"), education):
+            continue
+        if not _contains(p.get("location"), location):
             continue
         if not _contains(p.get("phone"), phone):
             continue

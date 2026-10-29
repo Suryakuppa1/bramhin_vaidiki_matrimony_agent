@@ -1,8 +1,13 @@
 """Readable profile formatting for Telegram and the desktop Vault."""
 from __future__ import annotations
 
+import base64
 from datetime import date
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
+
+_BACKGROUND = Path(__file__).resolve().parent / "assets" / "wedding_background.jpg"
 
 
 def _val(value: Any, *, title: bool = False) -> str:
@@ -181,6 +186,37 @@ def format_matches_list(
     return chunks
 
 
+def format_vault_report(profiles: list[dict], *, summary: str) -> str:
+    """Plain biodata sheets for a downloaded text copy of a Submit result."""
+    lines = [
+        "Wedding Vault",
+        summary or "All stored profiles",
+        f"Profiles: {len(profiles)}",
+        "",
+    ]
+    if not profiles:
+        lines.append("No profiles matched these fields.")
+        return "\n".join(lines).rstrip() + "\n"
+    blocks = [
+        format_profile_text(profile, index=index, include_phone=True)
+        for index, profile in enumerate(profiles, 1)
+    ]
+    return "\n\n".join(lines + blocks).rstrip() + "\n"
+
+
+def vault_hero_html(profile_count: int) -> str:
+    noun = "profile" if profile_count == 1 else "profiles"
+    return (
+        '<div class="mv-hero">'
+        '<div class="mv-kicker">A private desk for family matching</div>'
+        '<div class="mv-hero-title">Wedding Vault</div>'
+        '<p class="mv-hero-lead">Choose the fields you need from the menus, then press Submit. '
+        "Each profile comes back as a biodata sheet.</p>"
+        f'<div class="mv-count">{profile_count} {noun} stored on this computer</div>'
+        "</div>"
+    )
+
+
 def format_profile_html(profile: dict, *, index: int | None = None, include_phone: bool = True) -> str:
     """Readable HTML biodata sheet for the desktop Vault."""
     name = _val(profile.get("name"))
@@ -230,41 +266,145 @@ def format_profile_html(profile: dict, *, index: int | None = None, include_phon
     )
 
 
+@lru_cache(maxsize=1)
+def _background_image_url() -> str:
+    if not _BACKGROUND.is_file():
+        return ""
+    encoded = base64.b64encode(_BACKGROUND.read_bytes()).decode("ascii")
+    return f'url("data:image/jpeg;base64,{encoded}")'
+
+
 def vault_stylesheet() -> str:
     """Shared CSS injected once by the Vault Streamlit app."""
+    photo = _background_image_url()
+    if photo:
+        background = (
+            "linear-gradient(180deg, rgba(255,248,242,0.2), rgba(255,244,236,0.34)), " + photo
+        )
+    else:
+        background = "linear-gradient(165deg, #fff9f4 0%, #f7e7ea 46%, #f3e6d4 100%)"
     return """
 <style>
-  .block-container { max-width: 760px; padding-top: 1.35rem; padding-bottom: 3rem; }
-  h1 { letter-spacing: -0.02em; font-weight: 650; }
+  .stApp, [data-testid="stAppViewContainer"] {
+    background-color: #f3e6d4 !important;
+    background-image: __BG__ !important;
+    background-size: cover !important;
+    background-position: center top !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+    color: #3b241c;
+  }
+  header[data-testid="stHeader"] { background: transparent !important; }
+  section.main > div { background: transparent !important; }
+  .block-container {
+    max-width: 980px !important;
+    margin-top: 3.2rem;
+    padding-top: 1.35rem !important;
+    padding-bottom: 2.6rem;
+    background: rgba(255, 250, 246, 0.9);
+    border: 1px solid rgba(196, 163, 106, 0.72);
+    border-radius: 28px;
+    box-shadow: 0 24px 60px rgba(110, 36, 54, 0.12);
+  }
+  .mv-hero { text-align: center; margin: 0.2rem 0 1.15rem; }
+  .mv-kicker {
+    letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.74rem;
+    color: #a06a3a; font-weight: 650;
+  }
+  .mv-hero-title {
+    font-family: Georgia, "Palatino Linotype", Palatino, serif;
+    font-size: 2.7rem; line-height: 1.1; color: #6e2436; font-weight: 600;
+    margin: 0.25rem 0 0.4rem;
+  }
+  .mv-hero-lead {
+    color: #5c463c; font-size: 1.02rem; line-height: 1.5; margin: 0 auto;
+    max-width: 38rem;
+  }
+  .mv-count {
+    display: inline-block; margin-top: 0.75rem; padding: 0.28rem 0.8rem;
+    border-radius: 999px; border: 1px solid #e4d0b0; background: rgba(255, 248, 242, 0.85);
+    color: #6e2436; font-size: 0.88rem;
+  }
+  .mv-panel-title {
+    font-family: Georgia, "Palatino Linotype", Palatino, serif;
+    color: #6e2436; font-size: 1.45rem; margin: 0.2rem 0 0.25rem;
+  }
+  .mv-waiting {
+    margin: 0.4rem 0 0.2rem; padding: 0.9rem 1rem; text-align: center;
+    border: 1px dashed #e4d0b0; border-radius: 16px; color: #6b5348;
+    background: rgba(255, 248, 242, 0.65);
+  }
   .mv-sheet {
-    background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fa 100%);
-    border: 1px solid #d5dee8;
-    border-radius: 14px;
+    background: linear-gradient(180deg, #fffdfb 0%, #fff6f2 100%);
+    border: 1px solid #e4d0b0;
+    border-radius: 18px;
     padding: 1.15rem 1.35rem 0.85rem;
     margin: 0 0 1.15rem 0;
-    box-shadow: 0 1px 0 rgba(20, 50, 74, 0.04);
+    box-shadow: 0 10px 28px rgba(122, 49, 66, 0.06);
   }
-  .mv-header { margin-bottom: 0.85rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e2eaf1; }
-  .mv-name { font-size: 1.28rem; font-weight: 650; color: #14324a; line-height: 1.3; }
-  .mv-sub { color: #5f7386; margin-top: 0.28rem; font-size: 0.95rem; line-height: 1.4; }
+  .mv-header { margin-bottom: 0.85rem; padding-bottom: 0.75rem; border-bottom: 1px solid #f0e2d2; }
+  .mv-name {
+    font-family: Georgia, "Palatino Linotype", Palatino, serif;
+    font-size: 1.35rem; font-weight: 650; color: #6e2436; line-height: 1.3;
+  }
+  .mv-sub { color: #7a5b4a; margin-top: 0.28rem; font-size: 0.95rem; line-height: 1.4; }
   .mv-section { margin: 0.55rem 0 0.85rem; }
   .mv-section-title {
     font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
-    color: #7a8b9a; font-weight: 650; margin: 0 0 0.35rem 0;
+    color: #a06a3a; font-weight: 650; margin: 0 0 0.35rem 0;
   }
   .mv-row {
     display: flex; gap: 1rem; align-items: baseline;
-    padding: 0.38rem 0; border-bottom: 1px solid #eaf0f5;
+    padding: 0.38rem 0; border-bottom: 1px solid #f3e8df;
   }
   .mv-row:last-child { border-bottom: none; }
-  .mv-label { min-width: 7.2rem; color: #5b6b7c; font-size: 0.9rem; flex-shrink: 0; }
-  .mv-value { flex: 1; color: #1c2a36; font-size: 1.05rem; line-height: 1.5; word-break: break-word; }
+  .mv-label { min-width: 7.2rem; color: #7a5b4a; font-size: 0.9rem; flex-shrink: 0; }
+  .mv-value { flex: 1; color: #3b241c; font-size: 1.05rem; line-height: 1.5; word-break: break-word; }
+  .stApp [data-testid="stBaseButton-primary"],
+  .stApp [data-testid="stBaseButton-primaryFormSubmit"] {
+    background: linear-gradient(180deg, #a24b5c 0%, #7c3142 100%) !important;
+    color: #fffaf6 !important;
+    border: 1px solid #e7d3a1 !important;
+    border-radius: 999px !important;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+  }
+  .stApp [data-testid="stBaseButton-secondary"],
+  .stApp [data-testid="stBaseButton-secondaryFormSubmit"] {
+    border-radius: 999px !important;
+    border: 1px solid #c4a36a !important;
+    background: #fffaf6 !important;
+    color: #6e3140 !important;
+    font-weight: 600;
+  }
+  .stApp button:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed;
+  }
+  [data-testid="stFileUploader"] section {
+    background: rgba(255, 250, 245, 0.72);
+    border: 1px dashed #c4a36a;
+    border-radius: 16px;
+  }
+  [data-testid="stForm"] {
+    border: 1px solid rgba(228, 208, 176, 0.95);
+    border-radius: 18px;
+    background: rgba(255, 252, 248, 0.72);
+    padding: 0.35rem 0.85rem 0.9rem;
+  }
+  div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(255, 252, 248, 0.78);
+    border-color: rgba(228, 208, 176, 0.95) !important;
+    border-radius: 18px;
+  }
   @media (max-width: 640px) {
+    .block-container { margin-top: 1rem; border-radius: 18px; }
+    .mv-hero-title { font-size: 2.1rem; }
     .mv-row { flex-direction: column; gap: 0.15rem; }
     .mv-label { min-width: 0; }
   }
 </style>
-"""
+""".replace("__BG__", background)
 
 
 def _escape(text: str) -> str:

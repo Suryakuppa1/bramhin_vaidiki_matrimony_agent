@@ -1,10 +1,15 @@
-Matrimony Vault inbox — drop exports here, then run:
+Matrimony Vault inbox.
 
-  streamlit run vault/app.py
+Easiest path: open the desktop app and press Import files.
+
+  python run_vault.py
+
+You can still drop exports in this folder, then press Read vault_inbox folder.
 
 Supported:
   .txt / .csv     labeled biodata or WhatsApp export text
   .xlsx           Excel sheets (key/value columns or rows)
+  .docx           Word biodata
   .pdf            text PDFs (needs pymupdf)
   .json           Telegram Desktop JSON (message text)
   .png/.jpg/…     image biodata (needs pillow + pytesseract + system tesseract)
